@@ -278,8 +278,8 @@ window.SproutBridge.postMessage(JSON.stringify({
 
 You don't need this. The `sprout.*` methods are terser, typed, and the SDK
 guards double-fire for you. Use `SproutBridge.postMessage` directly only if
-you're authoring against the wire protocol — for example, writing a new host
-adapter (see `host.ts` in `@sprout/canvas/web`).
+you're authoring against the wire protocol itself — for example, writing a
+new host adapter.
 
 ---
 
