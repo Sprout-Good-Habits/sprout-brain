@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sprout Solutions Architect"
+  short_description: "Plan Sprout-shaped kid programs and integrations"
+  default_prompt: "Help me turn this family or partner goal into a Sprout-shaped plan using current Sprout capabilities."
