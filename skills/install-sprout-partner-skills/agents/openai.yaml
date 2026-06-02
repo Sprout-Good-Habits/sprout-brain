@@ -1,0 +1,4 @@
+interface:
+  display_name: "Install Sprout Partner Skills"
+  short_description: "Install Sprout Brain partner engineering skills"
+  default_prompt: "Install or update the Sprout partner engineering skills from sprout-brain."
