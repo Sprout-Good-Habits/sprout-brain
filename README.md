@@ -15,8 +15,21 @@ Each domain gets its own folder so new docs slot in without reshuffling:
 sprout-brain/
 ├── README.md     # this file — human-facing orientation
 ├── llms.md       # agent index — every doc as a URL + one-liner
-└── canvas/
-    └── sdk.md    # the window.sprout.* contract for Sprout-served canvases
+├── canvas/
+│   └── sdk.md    # the window.sprout.* contract for Sprout-served canvases
+├── skills/
+│   ├── README.md
+│   ├── sprout-solutions-architect/
+│   │   └── SKILL.md
+│   └── platforms/
+├── knowledge/
+│   ├── capabilities/
+│   ├── anti-patterns/
+│   ├── primitives/
+│   ├── patterns/
+│   └── sequences/
+├── examples/
+└── evals/
 ```
 
 Future siblings: `mcp/`, `design/`, `voice/`, `skill-authoring/` — same shape.
@@ -28,6 +41,11 @@ first, scans the one-liners to find the doc it needs, then fetches that doc
 directly. This follows the emerging `llms.txt` convention (we use `.md` so it
 renders on GitHub).
 
+Docs should support lazy loading. Prefer small standalone files with clear
+titles over large omnibus references. Keep aggregate files as indexes that
+point to leaf docs; do not rely on an agent remembering details from a broad
+context dump.
+
 A doc URL is its raw GitHub path, e.g.:
 
 ```
@@ -38,6 +56,9 @@ https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/sd
 
 - One folder per domain. Don't nest beyond two levels without a reason.
 - Every new doc gets a line in `llms.md` — URL plus a one-sentence summary.
+- Large domains should have an index file plus small leaf docs so agents can
+  search and load only the needed pattern, primitive, capability, example, or
+  anti-pattern.
 - Docs are the contract. If behavior and the doc disagree, fix one of them.
 
 ## Status
