@@ -2,7 +2,7 @@
 
 A canvas is a kid-facing HTML artifact.
 
-Last verified: 2026-06-02
+Last verified: 2026-06-05
 
 ## Use for
 
@@ -10,6 +10,8 @@ Last verified: 2026-06-02
 - Mission lobbies.
 - Interactive explorers.
 - Visual check-ins.
+- Resumable activities — `sprout.state` persists run progress so the child
+  continues where they left off on reopen.
 
 ## Do not use for
 
