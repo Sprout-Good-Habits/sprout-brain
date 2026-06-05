@@ -2,7 +2,7 @@
 
 Agents can author custom HTML canvases and attach them to skills.
 
-Last verified: 2026-06-02
+Last verified: 2026-06-05
 
 ## Tools
 
@@ -28,6 +28,8 @@ Use canvases for:
 - The canvas SDK is auto-injected. Do not add external scripts.
 - Canvases cannot fetch external data.
 - Canvases must emit exactly one terminal completion signal.
+- Canvases persist run state across reopens via `sprout.state` (auto-saved); the
+  child resumes where they left off. Durable run state only — no PII, JSON-serializable.
 - A canvas can motivate, orient, collect a kid claim, or run an in-canvas
   activity.
 - A canvas should not be treated as proof of offscreen work.

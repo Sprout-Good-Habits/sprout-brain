@@ -211,6 +211,59 @@ both paths safe.
 
 ---
 
+## Canvas Memory — `sprout.state` (auto-persisted resume)
+
+Write your canvas's durable run state into `sprout.state` and the SDK
+**auto-persists it as the child works** — there are NO save points, assignment
+IS the save. When the child closes the app mid-activity and reopens the canvas,
+the host **seeds `sprout.state` with the saved snapshot before your code runs**,
+so it is already correct at your first line — no async wait, no poll.
+
+**Author with merge-defaults: read `sprout.state`, default-fill the fields that
+are missing, then mutate.** Never replace the whole object — assigning
+`sprout.state = {…}` WIPES a resumed run.
+
+```js
+const S = sprout.state; // already the saved snapshot on resume, {} on a fresh start
+S.step ??= 0; // default-fill ONLY what's missing — never overwrite
+S.answers ??= {};
+
+// …now mutate freely; every change auto-persists.
+S.answers.q1 = 'blue';
+S.step = 1;
+```
+
+Use `sprout.resumed` (a boolean, accurate at your first line) for the genuine
+fresh-vs-resume branches:
+
+```js
+if (sprout.resumed) {
+  goToStep(sprout.state.step); // returning mid-run — rebuild UI from restored state
+} else {
+  showIntro();                 // brand-new run — intro / tutorial / first-time bonus
+}
+```
+
+`sprout.restore()` is a **deprecated** back-compat alias (returns the snapshot
+when resuming, else `null`); prefer `sprout.resumed`. `sprout.save()` is a
+**manual-flush escape hatch** — you rarely need it, assignment already persists.
+
+### Authoring rules (HARD)
+
+- **Merge-defaults, never replace.** Default-fill missing fields
+  (`sprout.state.x ??= default`) and mutate. Assigning `sprout.state = {…}`
+  wholesale clobbers a resumed run — branch on `sprout.resumed` instead.
+- **Durable state only.** Answers, current step, progress, score-so-far. Keep
+  volatile / derived / animation state OUT — every write persists, so volatile
+  writes cause write-amplification.
+- **JSON-serializable values only.** No functions, DOM nodes, `Date`, `Map`,
+  `Set` — stripped on save.
+- **No PII / identifiers** in `sprout.state`. Activity data only.
+- **Always wire `sprout.state` — every canvas.** A canvas that ignores it
+  restarts the child from scratch on every reopen, which we never want.
+
+---
+
 ## Rules
 
 1. **No `fetch()`.** Network access is blocked by the canvas CSP. Use
