@@ -60,11 +60,21 @@ def parse_skill_selection(raw_skills: str, discovered: dict[str, Path]) -> list[
 
 
 def backup_existing(target_dir: Path) -> Path:
+    """Move target_dir to a sibling `<parent>-backups/` directory.
+
+    Keeping backups inside the scanned `skills/` dir would cause the
+    harness's skill scanner to index them as duplicate skills (any folder
+    with a `SKILL.md` is treated as a skill). Putting them in a sibling
+    `skills-backups/` dir preserves the rollback path without polluting
+    the live skills list.
+    """
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    backup = target_dir.with_name(f"{target_dir.name}.bak-{stamp}")
+    backup_root = target_dir.parent.with_name(target_dir.parent.name + "-backups")
+    backup_root.mkdir(parents=True, exist_ok=True)
+    backup = backup_root / f"{target_dir.name}.bak-{stamp}"
     counter = 1
     while backup.exists():
-        backup = target_dir.with_name(f"{target_dir.name}.bak-{stamp}-{counter}")
+        backup = backup_root / f"{target_dir.name}.bak-{stamp}-{counter}"
         counter += 1
     target_dir.rename(backup)
     return backup
