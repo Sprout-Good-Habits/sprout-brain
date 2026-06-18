@@ -2,7 +2,7 @@
 
 Agents can author custom HTML canvases and attach them to skills.
 
-Last verified: 2026-06-05
+Last verified: 2026-06-18
 
 ## Tools
 
@@ -30,6 +30,8 @@ Use canvases for:
 - Canvases must emit exactly one terminal completion signal.
 - Canvases persist run state across reopens via `sprout.state` (auto-saved); the
   child resumes where they left off. Durable run state only — no PII, JSON-serializable.
+- A canvas can make the Sprout buddy speak aloud via `sprout.tts.speak({ text })`
+  — kid's device only; rejects in the web preview (no buddy there).
 - A canvas can motivate, orient, collect a kid claim, or run an in-canvas
   activity.
 - A canvas should not be treated as proof of offscreen work.
