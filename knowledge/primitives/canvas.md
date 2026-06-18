@@ -2,7 +2,7 @@
 
 A canvas is a kid-facing HTML artifact.
 
-Last verified: 2026-06-05
+Last verified: 2026-06-18
 
 ## Use for
 
@@ -12,6 +12,10 @@ Last verified: 2026-06-05
 - Visual check-ins.
 - Resumable activities — `sprout.state` persists run progress so the child
   continues where they left off on reopen.
+- Buddy-voiced moments — `sprout.tts.speak({ text })` makes the Sprout buddy talk
+  aloud on the kid's device (celebrate, read a prompt, nudge). Ends with one
+  `sprout.complete(opts)` call (the canonical completion; `score` / `completed` /
+  `timed` are aliases).
 
 ## Do not use for
 
