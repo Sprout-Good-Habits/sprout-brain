@@ -78,6 +78,7 @@ URLs are raw GitHub paths on the `main` branch.
 - [knowledge/anti-patterns/inventing-mcp-fields.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/anti-patterns/inventing-mcp-fields.md) — Avoid inventing MCP fields.
 - [knowledge/anti-patterns/phone-approval-guarantee.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/anti-patterns/phone-approval-guarantee.md) — Avoid guaranteeing phone approval UI without verification.
 - [knowledge/anti-patterns/overbuilding-non-coder-parent.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/anti-patterns/overbuilding-non-coder-parent.md) — Avoid overbuilding or overexplaining to non-coder parents.
+- [knowledge/anti-patterns/platform-chrome-in-canvas.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/anti-patterns/platform-chrome-in-canvas.md) — Avoid rendering gem balances, streaks, or lobby boards inside a canvas; Sprout surfaces own platform chrome.
 
 ## Solutions Architect — Examples
 
