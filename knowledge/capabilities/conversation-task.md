@@ -1,17 +1,25 @@
 # Conversation Task Capability
 
-Conversation tasks support journaling, explanation, reflection, and practice
-without a custom canvas.
+Conversation tasks let Sprout talk with the child — share, explain, debate, or
+practice — without a custom canvas.
 
-Last verified: 2026-06-02
+Last verified: 2026-07-01
 
 ## Tool shape
 
 Use `task_create` with:
 
 - `runMode: "conversation"`
-- `conversationSpec.goalType`
-- concrete `conversationSpec.guidance`
+- `childIds` and a `scheduleSpec` (when/how often the task fires — required)
+- `conversationSpec.goalType` — one of `share` (journal / mood), `explain`
+  (teach-back / homework), `debate` (argue a side), `practice` (language /
+  social)
+- concrete `conversationSpec.guidance` (what Sprout should draw out)
+- optional `assignmentSkillId` (deliver through a skill — preferred)
+
+Optional `conversationSpec` tuning: `minResponses` / `maxResponses`,
+`dailyTarget`, `effort` (`lenient` | `balanced` | `strict`), `grading`
+(`engagement` | `correctness`), and `outcomes` (evidence targets).
 
 ## Good for
 

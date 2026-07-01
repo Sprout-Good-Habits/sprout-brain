@@ -3,13 +3,14 @@
 Heartbeats schedule skill runs on a cadence. They are different from recurring
 child tasks.
 
-Last verified: 2026-06-02
+Last verified: 2026-07-01
 
 ## Tools
 
 - `heartbeat_describe`
-- `heartbeat_create` when available
-- `heartbeat_update` when available
+- `heartbeat_list`
+- `heartbeat_create`
+- `heartbeat_update`
 
 ## Use when
 

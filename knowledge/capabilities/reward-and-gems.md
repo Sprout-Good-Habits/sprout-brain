@@ -24,12 +24,14 @@ Last verified: 2026-07-01
 - `reward_review_claim`
 - `reward_list_pending_requests`
 - `reward_review_request`
+- `reward_prepare_photo_upload`
 
 ## Gem tools and paths
 
 - `gems_query_balance`
+- `gems_list_transactions`
 - `task_review({ gemsAwarded })`
-- `gems.adjust` when available and appropriate
+- `gems_adjust` — direct balance adjustment
 
 ## Default rule
 
