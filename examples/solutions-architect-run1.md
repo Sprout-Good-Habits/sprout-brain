@@ -3,7 +3,7 @@
 Index for worked examples. Load this file first, then open the example that
 matches the user request.
 
-Last verified: 2026-06-02
+Last verified: 2026-07-01
 
 ## Examples
 
@@ -11,3 +11,6 @@ Last verified: 2026-06-02
 - `solutions-architect/learning-platform-multiplication-quest.md`
 - `solutions-architect/piano-left-right-practice.md`
 - `solutions-architect/summer-routine.md`
+- `solutions-architect/screentime-earned.md`
+- `solutions-architect/screentime-focus-schedule.md`
+- `solutions-architect/screentime-no-gems.md`

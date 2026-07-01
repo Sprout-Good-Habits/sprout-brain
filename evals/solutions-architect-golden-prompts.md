@@ -3,7 +3,7 @@
 Index for solutions architect evaluation prompts. Load this file first, then
 open the relevant prompt file.
 
-Last verified: 2026-06-02
+Last verified: 2026-07-01
 
 ## Rubric
 
@@ -37,3 +37,6 @@ A bad answer:
 - `solutions-architect/summer-routine.md`
 - `solutions-architect/external-platform-data.md`
 - `solutions-architect/just-create-it.md`
+- `solutions-architect/screentime-earned.md`
+- `solutions-architect/screentime-focus-schedule.md`
+- `solutions-architect/screentime-no-gems.md`
