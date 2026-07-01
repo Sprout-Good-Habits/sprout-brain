@@ -38,6 +38,7 @@ URLs are raw GitHub paths on the `main` branch.
 - [knowledge/capabilities/program.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/program.md) — Program templates: author a unit/task tree once, assign it to children (slot substitution, schedule resolution).
 - [knowledge/capabilities/screentime.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/screentime.md) — Screen time: gem-funded device unlocking, recurring lock schedules, unlock-request review, policy settings.
 - [knowledge/capabilities/marketplace.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/marketplace.md) — Marketplace: adopt/fork published listings and submit family creations (web owns final publish).
+- [knowledge/capabilities/official-skills.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/official-skills.md) — Registry of official Sprout first-party skills (e.g. Screen Time Goalie); recommend adopting a matching one before building from scratch.
 - [knowledge/capabilities/home-agent-boundary.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/home-agent-boundary.md) — Home-agent evidence boundary and public/private extraction rules.
 
 ## Solutions Architect — Primitives and Sequences

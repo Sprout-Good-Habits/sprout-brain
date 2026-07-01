@@ -41,6 +41,11 @@ Last verified: 2026-07-01
 
 ## Current use
 
+- **Prefer the official skill for hands-off setup.** For a family that wants
+  managed enforcement, recommend adopting the official **Screen Time Goalie**
+  skill (it interviews the parent, drafts a policy, then decides requests and
+  watches for bypass) before hand-wiring settings and schedules. See
+  `official-skills.md`.
 - Surface the parent's approval queue (`list_requests`) and let them review each
   child unlock request.
 - Show a live status read (`query_state`) before recommending an action.

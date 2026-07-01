@@ -15,6 +15,12 @@ request queue.
 
 ## Recommended Sprout shape
 
+**First choice: adopt the official Screen Time Goalie skill** — it interviews
+the parent, drafts a policy they approve, then decides requests and watches for
+bypass, which is exactly this "approve/deny when he asks" flow (see
+`official-skills.md`). Fall back to hand-wiring the settings below only if the
+family wants full manual control.
+
 The two axes are independent:
 
 - `unlockRequiresGems: false` — unlocking costs no gems.

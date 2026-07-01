@@ -39,6 +39,12 @@ child then converts gems to time by either model.
 4. Confirm the shape (which model, gem rate) with the parent before delivering.
 ```
 
+## Also consider
+
+- The official **Screen Time Goalie** skill for managed enforcement on top of the
+  earning model (see `official-skills.md`) — adopt it rather than rebuilding the
+  policy/enforcement loop.
+
 ## Avoid
 
 - Awarding gems from a kid-facing surface without parent review.

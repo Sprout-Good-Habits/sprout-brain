@@ -18,6 +18,7 @@ Last verified: 2026-07-01
 - `program.md` - Reusable multi-task program templates assigned to children.
 - `screentime.md` - Gem-funded device unlocking, schedules, and unlock requests.
 - `marketplace.md` - Adopt / fork published listings and submit family creations.
+- `official-skills.md` - Official Sprout first-party skills to recommend + adopt.
 - `home-agent-boundary.md` - External data, suggested evidence shapes, and
   public/private boundaries.
 
