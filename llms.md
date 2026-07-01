@@ -9,12 +9,14 @@ URLs are raw GitHub paths on the `main` branch.
 
 - [canvas/sdk.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/sdk.md) — The `window.sprout.*` SDK contract for Sprout-served canvases: identity reads, external learning links (`openExternalUrl`), buddy voice (`sprout.tts`), Rive animations (`sprout.rive`), Canvas Memory (`sprout.state` auto-persist + resume), multiplayer sessions (`sprout.session`), signals, completion (`sprout.complete(opts)` canonical), upload flows, concurrency (`expectedVersion`), error handling, and the Released/Roadmap status legend.
 - [canvas/artifact-kit.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/artifact-kit.md) — The Sprout design system for canvas artifacts: CSS component classes, layout helpers, design tokens, typography, animations.
+- [canvas/design-patterns.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/design-patterns.md) — The design layer on top of the artifact kit: page archetypes, button placement, the component-default decision table, and age-tier adaptation for authoring canvases in the Sprout child design language.
 
 ## Skills
 
 - [skills/README.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/README.md) — What Sprout Brain skills do, how core architect skills differ from platform skills, and local/public install guidance.
 - [skills/install-sprout-partner-skills/SKILL.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/install-sprout-partner-skills/SKILL.md) — Installable skill for installing or updating Sprout Brain skills into Codex and Claude Code local skill directories.
 - [skills/sprout-solutions-architect/SKILL.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/sprout-solutions-architect/SKILL.md) — Installable skill for planning Sprout-shaped kid programs, parent activities, external home-agent integrations, rewards, and marketplace adoption/remix.
+- [skills/canvas-planner/SKILL.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/canvas-planner/SKILL.md) — Installable skill for planning a canvas's design (page archetype, ASCII mock, artifact-kit components, tokens, SDK behavior hooks) in the Sprout child design language before authoring it.
 
 ## Solutions Architect
 

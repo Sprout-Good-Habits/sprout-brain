@@ -1,0 +1,4 @@
+interface:
+  display_name: "Canvas Planner"
+  short_description: "Plan a Sprout canvas in the child design language"
+  default_prompt: "Help me plan a Sprout canvas's design (layout, components, tokens, behavior) before I author it."

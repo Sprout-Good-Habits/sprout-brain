@@ -24,6 +24,16 @@ Use it when a parent or partner asks how to make something happen with Sprout:
 It decides which pattern, primitive, capability, anti-pattern, example, or eval
 doc to load. It should not load the entire brain into context.
 
+### Canvas skill
+
+`canvas-planner` plans a canvas's design before it is authored, so the resulting
+kid-facing HTML follows the Sprout child design language instead of ad-hoc
+styling. It loads `canvas/design-patterns.md`, `canvas/artifact-kit.md`, and
+`canvas/sdk.md`, and produces a layout plan (page archetype, ASCII mock,
+components + placement, tokens, SDK behavior hooks, age-tier adaptation).
+
+Use it before building any canvas activity.
+
 ### Platform skills
 
 Platform skills live under `skills/platforms/`.
