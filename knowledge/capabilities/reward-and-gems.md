@@ -2,7 +2,17 @@
 
 Rewards are spending goals. Tasks and reviews are how kids earn gems.
 
-Last verified: 2026-06-02
+Last verified: 2026-07-01
+
+## Reward categories
+
+- **`general`** (default) — a catalog goal the child claims (e.g. "Switch game").
+  Must not carry a `minutes` grant.
+- **`screen_time`** — a reward whose payout is device screen time. Pass
+  `category: 'screen_time'` with `screenTimeSpec: { minutes }` (a positive grant
+  is required) to `reward_create`, priced in `gemsRequired`. On claim approval
+  the child is granted those minutes. See `screentime.md` for how this sits
+  alongside metered (gem-per-minute) unlocks.
 
 ## Reward tools
 
