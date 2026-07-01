@@ -32,5 +32,5 @@ Last verified: 2026-07-01
 | Phone approval | Require parent approval; use task review or parent-facing result if supported | Promise a custom phone UI without verification |
 | Reusable multi-week routine | Program template authored once, assigned per child with input slots | Re-authoring the same tasks per child by hand |
 | Manage / earn screen time | Screen-time settings, schedules, and gem-funded unlocks with parent review | Promising a custom on-device screen-time UI |
-| Reuse a proven activity | Adopt or fork a published marketplace listing into the family library | Assuming an agent can publish end-to-end (web owns publish) |
+| Reuse a proven activity | Adopt a published marketplace listing (prefer adopt; fork only to customize) | Forking by default; assuming an agent can publish end-to-end (web owns publish) |
 | Partner publishing | Validate against Sprout primitives and public/private boundary | Publishing extraction recipes or invented schemas |

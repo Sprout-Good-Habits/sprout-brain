@@ -5,6 +5,11 @@ canvas-backed recipes that families can adopt (use as-is) or fork (copy +
 customize privately). A family can also submit its own creations for publishing.
 Every adopt/fork lands a private copy in the adopting family's library.
 
+**Prefer adopt for now.** Default to `marketplace_adopt` (use the listing as-is);
+reach for `marketplace_fork` only when the family genuinely needs to customize.
+Adopt is the simpler, idempotent path and keeps the family on the maintained
+listing.
+
 Last verified: 2026-07-01
 
 ## Tools
@@ -29,7 +34,8 @@ Last verified: 2026-07-01
 
 ## Current use
 
-- Adopt a published listing for immediate use, or fork one to remix privately.
+- Adopt a published listing for immediate use (the default). Fork only when the
+  family needs to customize it.
 - Prepare a submission draft, validate it with `submit_preview`, attach a preview
   image, and track status through `submission_status`.
 - Where enabled, discover listings by intent (`search`) and inspect before
