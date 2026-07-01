@@ -41,9 +41,11 @@ Walks the canvas idea through a design plan:
    mission lobby, sorting/matching, result). Name it and why it fits.
 3. **ASCII layout mock** — a text sketch of the screen(s), top to bottom. This is
    the alignment artifact: agree on layout in text before writing HTML.
-4. **Component plan** — for each region, the artifact-kit component to use and its
-   placement (from the decision table). One primary CTA per screen; visible
-   submit always; feedback banners pinned bottom.
+4. **Component plan** — for each region, the artifact-kit component to use, its
+   placement (from the decision table), and the **behavior to reproduce** —
+   states, interaction, transition (see `design-patterns.md` → Component
+   behavior). One primary CTA per screen; visible submit always; feedback banners
+   pinned bottom with their own action.
 5. **Tokens & spacing** — the tokens for color/spacing/radius/type; single-column,
    mobile-first, 44px touch targets. No hardcoded hex.
 6. **Behavior hooks** — which SDK calls: `whoami` for personalization + tier,

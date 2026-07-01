@@ -2,9 +2,14 @@
 
 How to author a canvas in the Sprout child design language. `artifact-kit.md` is
 the **component API** (which classes exist and their markup); this doc is the
-**design layer** on top of it — page archetypes, button placement, the
-component-default decision table, and age-tier adaptation. Use both, plus
-`sdk.md` for behavior.
+**design + behavior layer** on top of it — page archetypes, button placement,
+the component-default decision table, per-component behavior, and age-tier
+adaptation. Use both, plus `sdk.md` for behavior.
+
+> **Use the current SDK.** The completion API is `sprout.complete(opts)` (see
+> `sdk.md`). Some `artifact-kit.md` examples still show the legacy
+> `SproutBridge.postMessage` bridge — treat those as legacy and call
+> `sprout.complete()` instead.
 
 Last verified: 2026-07-01
 
@@ -83,6 +88,42 @@ that fits, then fill it with kit components.
 | Loading | `spinner` |
 | Character, celebration, reactive motion | `sprout.rive` (curated `sprout-mascot`) |
 | Micro-motion (reveal, wrong-answer, pop) | `animate-bounce-in` / `animate-shake` / `animate-pop` |
+
+## Component behavior
+
+The design system specifies how each component *behaves*, not just how it looks —
+reproduce the behavior with the kit class + minimal inline JS. Transitions below
+are built into the injected CSS and are disabled automatically under
+`prefers-reduced-motion`, so you never opt out in canvas code.
+
+- **Button** (`btn`, 48px, one primary/screen) — press dips ~100ms
+  (`translateY`), releases back; disabled via `btn-disabled`. Wire the action to
+  `sprout.complete(...)` (it guards double-fire), not `SproutBridge`.
+- **Input** (`input`, 56px) — blue focus border (150ms); add `input-error` for the
+  red state and show `input-error-text` below only when invalid.
+- **List item** (`list-item`) — tap toggles `checked` (blue). **Single-select:** an
+  `onclick` that clears siblings' `checked` then sets this one. **Multi-select:**
+  `onclick="this.classList.toggle('checked')"` per row.
+- **Checkbox / Radio** (`checkbox` / `radio`, 24px) — checkbox toggles independently;
+  radio sets `checked` on itself and clears its group. Marks draw via CSS `::after`.
+- **Switch** (`switch`, 44×24) — tap toggles `checked`; thumb slides ~200ms. Disable
+  with `opacity:.5; pointer-events:none`.
+- **Feedback banner** (`feedback-banner fb-*`) — start `display:none`, pinned bottom;
+  reveal via JS and it slides up ~300ms. It **owns its Continue/Retry button** —
+  hide it before the next question. `aria-live="polite"` to announce.
+- **Progress bar** (`progress-bar`) — set `.progress-fill` width in JS; it animates
+  ~400ms spring automatically. Live in the `top-toolbar`.
+- **Toast** (`toast` + `toast-countdown`) — springy enter ~350ms, auto-dismiss ~4s
+  with a countdown bar; show/hide via `display`.
+- **Sheet** (`sheet` + scrim) — slides up ~300ms over a dim scrim; tap the scrim to
+  dismiss (`event.stopPropagation()` on the sheet body).
+- **Spinner** (`spinner` / `spinner-sm`) — continuous rotation; show during async
+  work, remove when done.
+- **Card / Badge / Empty state** — presentational (no interaction). Pair a result
+  badge with `animate-bounce-in`; size empty-state hero emoji explicitly.
+
+Touch targets stay ≥44px (buttons 48, inputs 56). Use semantic elements
+(`<button>`, `<input>`, `<label>`) so focus/disabled states come for free.
 
 ## Age-tier adaptation
 
