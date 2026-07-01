@@ -147,11 +147,63 @@ so a reopened canvas resumes (every canvas — see `sdk.md` → Canvas Memory).
 - Emoji are core to the Sprout look (TossFace, auto-loaded); size hero emoji
   explicitly (`font-size` + `line-height:1` + `height`) to avoid overflow.
 
+## Third-party libraries — research a good fit
+
+Don't rebuild rich interactions from scratch. For a specialized activity, **look
+for a popular, well-maintained JS library** and bring it in through the
+canvas-CDN proxy. Example: **Hanzi Writer** for Chinese character stroke-order
+and writing practice; others by domain — music/rhythm, physics, drawing, data
+viz, math rendering. Search for the best fit for the activity, then vet it.
+
+**How to load one** (see `sdk.md` → Rules for the full contract):
+
+- Only via the canvas-CDN proxy, **relative + version-pinned**:
+  `/api/canvas-cdn/jsdelivr/npm/<pkg>@<exact-version>/<file>`. Any npm package on
+  jsdelivr works; no ranges, no `latest`, no other origins.
+- Static imports only (or a static import map for a bare transitive specifier).
+
+**Vetting checklist — a library is canvas-safe only if:**
+
+- It's published on npm and served by jsdelivr, at a pinned version.
+- It runs **fully client-side with no external network at runtime** — the sandbox
+  CSP is `connect-src 'self'`, so any data the library fetches from an outside
+  origin is blocked. If the library loads data at runtime, route that data
+  through the **same-origin** proxy (fetching `/api/canvas-cdn/...` is allowed).
+- It uses **no web workers** (`worker-src 'none'`) and no WASM except Rive via
+  `sprout.rive` (raw `WebAssembly.*` / foreign `.wasm` is rejected).
+- It's reasonably sized and its license permits use.
+
+**Worked example — Hanzi Writer (data via the proxy).** Its default loader
+fetches character data from jsdelivr directly, which the CSP blocks — so supply a
+`charDataLoader` that fetches the data package through the same-origin proxy
+(illustrative; pin the current versions and confirm the data file path):
+
+```html
+<script src="/api/canvas-cdn/jsdelivr/npm/hanzi-writer@3.5.0/dist/hanzi-writer.min.js"></script>
+<script>
+  const writer = HanziWriter.create('target', '人', {
+    width: 260, height: 260, showOutline: true,
+    charDataLoader: (char, onComplete) =>
+      fetch(`/api/canvas-cdn/jsdelivr/npm/hanzi-writer-data@2.0.1/${char}.json`)
+        .then((r) => r.json())
+        .then(onComplete),
+  });
+  writer.quiz({ onComplete: () => sprout.complete({ score: 1, total: 1 }) });
+</script>
+```
+
+That pattern — load the lib via the proxy, then feed its runtime data from the
+same-origin proxy — is how any data-loading library works inside a canvas.
+
 ## Anti-patterns
 
 - Hand-rolling buttons/cards/inputs instead of using `artifact-kit` classes.
 - Hardcoding hex colors or pixel spacing where a token exists.
 - Linking the child app's design-system CDN or any external stylesheet (blocked).
+- Pulling a library from any origin other than the pinned canvas-CDN proxy, or
+  assuming a library that fetches data from an external CDN at runtime will work —
+  the CSP blocks it; route its data through the same-origin proxy or pick a
+  self-contained library.
 - Hiding the submit button because completion auto-fires.
 - More than one primary CTA on a screen.
 - Walls of text or many simultaneous choices for tier1.

@@ -48,12 +48,19 @@ Walks the canvas idea through a design plan:
    pinned bottom with their own action.
 5. **Tokens & spacing** — the tokens for color/spacing/radius/type; single-column,
    mobile-first, 44px touch targets. No hardcoded hex.
-6. **Behavior hooks** — which SDK calls: `whoami` for personalization + tier,
+6. **Research a library if it helps** — for a specialized interaction, actively
+   search for a popular, well-maintained JS library that fits (e.g. Hanzi Writer
+   for character-writing practice; a music, physics, drawing, or math-rendering
+   library for those domains). Before recommending it, vet it against the
+   canvas-library checklist in `design-patterns.md` (npm+jsdelivr, pinned, **no
+   external network at runtime** — route any data through the same-origin proxy,
+   no web workers). If it loads data, plan the proxy `charDataLoader`-style hook.
+7. **Behavior hooks** — which SDK calls: `whoami` for personalization + tier,
    `state` for resume, `signal` at meaningful moments, exactly one `complete`,
    `tts` for read-aloud, `rive` for character/motion.
-7. **Age-tier adaptation** — how the layout changes for tier1 vs tier3 (target
+8. **Age-tier adaptation** — how the layout changes for tier1 vs tier3 (target
    size, choice count, text density, read-aloud).
-8. **Handoff** — the plan feeds canvas authoring (`canvas.create` →
+9. **Handoff** — the plan feeds canvas authoring (`canvas.create` →
    `skill.write` → `task.create`). Remind that the build must stay in the
    artifact-kit envelope and the sandbox safety rules (`sdk.md` → Rules).
 
