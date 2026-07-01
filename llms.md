@@ -7,7 +7,7 @@ URLs are raw GitHub paths on the `main` branch.
 
 ## Canvas
 
-- [canvas/sdk.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/sdk.md) — The `window.sprout.*` SDK contract for Sprout-served canvases: identity reads, asset I/O, signals, completion (`sprout.complete(opts)` canonical), buddy voice (`sprout.tts.speak` — kid device only), Canvas Memory (`sprout.state` auto-persist + resume), error handling.
+- [canvas/sdk.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/sdk.md) — The `window.sprout.*` SDK contract for Sprout-served canvases: identity reads, external learning links (`openExternalUrl`), buddy voice (`sprout.tts`), Rive animations (`sprout.rive`), Canvas Memory (`sprout.state` auto-persist + resume), multiplayer sessions (`sprout.session`), signals, completion (`sprout.complete(opts)` canonical), upload flows, concurrency (`expectedVersion`), error handling, and the Released/Roadmap status legend.
 - [canvas/artifact-kit.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/artifact-kit.md) — The Sprout design system for canvas artifacts: CSS component classes, layout helpers, design tokens, typography, animations.
 
 ## Skills
