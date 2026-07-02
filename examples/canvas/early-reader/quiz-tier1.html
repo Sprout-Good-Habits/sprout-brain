@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+  .x-hero { text-align: center; padding-top: var(--spacing-5xl); }
+  .x-qcount { color: var(--text-tertiary); font-size: var(--font-size-text-sm); }
+  .x-prompt { display: flex; gap: var(--spacing-lg); align-items: center;
+    min-height: 56px; cursor: pointer; }
+  .x-prompt-glyph { font-size: 28px; line-height: 1; }
+  .x-prompt.x-speaking { background: var(--brand-50); border-color: var(--brand-300); }
+  .x-frozen { opacity: 0.4; pointer-events: none; transition: opacity 200ms ease; }
+</style>
+</head>
+<body>
+
+<div class="screen" id="screen-intro">
+  <div class="x-hero stack stack-xl">
+    <div class="tf" style="font-size:64px; line-height:1; height:64px;">🌙</div>
+    <h1 id="hello">Sky Quiz!</h1>
+    <p>Listen, then tap. Ready?</p>
+    <button class="btn btn-primary btn-lg" onclick="startGame()">Let's go!</button>
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-game">
+  <div class="top-toolbar">
+    <div class="top-toolbar-leading">
+      <button class="btn btn-util" onclick="replayPrompt()" aria-label="Hear it again" style="width:44px;height:44px;font-size:20px;">🔊</button>
+    </div>
+    <div style="flex:1">
+      <div class="progress-bar"><div class="progress-track"><div class="progress-fill" id="bar" style="width:0%"></div></div></div>
+    </div>
+    <div class="top-toolbar-trailing"><span class="tf">⭐</span>&nbsp;<span id="score-now">0</span></div>
+  </div>
+
+  <div class="card x-prompt" id="prompt-card" onclick="replayPrompt()">
+    <span class="tf x-prompt-glyph">🔊</span>
+    <div>
+      <div class="x-qcount" id="qcount">Question 1</div>
+      <h2 id="qtext" style="margin:0;">…</h2>
+    </div>
+  </div>
+
+  <div class="stack stack-lg x-actions" id="answers"></div>
+
+  <button class="btn btn-primary btn-lg x-actions" id="confirm-btn" onclick="confirmPick()">I picked it! ✓</button>
+</div>
+
+<div class="screen hidden" id="screen-result">
+  <div class="x-hero stack stack-xl">
+    <div class="tf animate-bounce-in" style="font-size:80px; line-height:1; height:80px;" id="result-emoji">🏆</div>
+    <h1>All done!</h1>
+    <p id="result-line"></p>
+    <button class="btn btn-primary btn-lg" onclick="finishTap()">I'm done!</button>
+  </div>
+</div>
+
+<div class="feedback-banner fb-success hidden" id="fb-good" style="position:fixed; bottom:0; left:0; right:0;" aria-live="polite">
+  <div class="fb-header"><div class="fb-icon">🎉</div><div class="fb-title">Correct!</div></div>
+  <div class="fb-content"><div class="fb-desc" id="fb-good-desc"></div></div>
+  <button class="btn btn-success btn-lg" onclick="nextQuestion()">Continue</button>
+</div>
+<div class="feedback-banner fb-error hidden" id="fb-bad" style="position:fixed; bottom:0; left:0; right:0;" aria-live="polite">
+  <div class="fb-header"><div class="fb-icon">🤔</div><div class="fb-title">Not quite</div></div>
+  <div class="fb-content"><div class="fb-desc" id="fb-bad-desc"></div></div>
+  <button class="btn btn-error btn-lg" onclick="nextQuestion()">Continue</button>
+</div>
+
+<script>
+// SLOT: content. Prompts short + speakable, actionable clause LAST; a fact line for the feedback banner.
+const QUESTIONS = [
+  { prompt: 'Which one comes out at night? Tap it!',
+    choices: [ {e:'🌙', t:'Moon'}, {e:'☀️', t:'Sun'}, {e:'🌈', t:'Rainbow'} ],
+    answer: 0, fact: 'The moon comes out at night.' },
+  { prompt: 'Which one keeps us warm? Tap it!',
+    choices: [ {e:'⭐', t:'Star'}, {e:'☀️', t:'Sun'}, {e:'☁️', t:'Cloud'} ],
+    answer: 1, fact: 'The sun keeps us warm.' },
+  { prompt: 'Which one do you see after rain? Tap it!',
+    choices: [ {e:'🌈', t:'Rainbow'}, {e:'🌙', t:'Moon'}, {e:'⭐', t:'Star'} ],
+    answer: 0, fact: 'Rainbows come out after rain.' },
+];
+
+const S = sprout.state;
+S.idx ??= 0; S.score ??= 0; S.done ??= false;
+let tier = 'tier2', locked = false, picked = null;
+
+function el(id) { return document.getElementById(id); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  el('screen-' + id).classList.remove('hidden');
+}
+function say(text) { try { sprout.tts.speak({ text }).catch(function(){}); } catch (e) {} }
+function sig(name, props) { try { sprout.signal(name, props || {}); } catch (e) {} }
+
+// ---- Speak-Then-Act layer (see design/early-readers.md) ----
+let sttTimer = null, sttNags = 0, currentPrompt = '', currentHint = '', cueTarget = null;
+
+function speakThenAct(text, hint, cueEl) {
+  currentPrompt = text; currentHint = hint || text; cueTarget = cueEl || null; sttNags = 0;
+  if (tier !== 'tier1') { armReprompt(); return; } // tier2+: no autoplay, speaker on request
+  freeze(true);
+  el('prompt-card').classList.add('x-speaking');
+  const estimate = Math.min(1200 + text.split(/\s+/).length * 320, 6000);
+  let unfrozen = false;
+  const unfreeze = () => {
+    if (unfrozen) return; unfrozen = true;
+    el('prompt-card').classList.remove('x-speaking');
+    freeze(false);
+    if (cueTarget) cueTarget.classList.add('animate-pop');
+    armReprompt();
+  };
+  try {
+    sprout.tts.stop().catch(function(){});
+    sprout.tts.speak({ text }).catch(unfreeze); // web preview rejects → usable immediately
+  } catch (e) { unfreeze(); }
+  setTimeout(unfreeze, estimate); // speak resolving ≠ audio finished — the estimate rules
+}
+
+function freeze(on) {
+  document.querySelectorAll('.x-actions').forEach(n => n.classList.toggle('x-frozen', on));
+}
+
+function replayPrompt() { speakThenAct(currentPrompt, currentHint, cueTarget); }
+
+function armReprompt() {
+  clearTimeout(sttTimer);
+  if (tier !== 'tier1' || sttNags >= 2) return;
+  sttTimer = setTimeout(() => {
+    sttNags += 1;
+    say(currentHint);
+    if (cueTarget) {
+      cueTarget.classList.remove('animate-pulse');
+      void cueTarget.offsetWidth;
+      cueTarget.classList.add('animate-pulse');
+    }
+    armReprompt();
+  }, 7000);
+}
+
+document.addEventListener('pointerdown', () => { clearTimeout(sttTimer); }, true);
+// ---- end Speak-Then-Act layer ----
+
+function startGame() { showScreen('game'); renderQuestion(); }
+
+function renderQuestion() {
+  locked = false; picked = null;
+  el('fb-good').classList.add('hidden'); el('fb-bad').classList.add('hidden');
+  const q = QUESTIONS[S.idx];
+  el('qcount').textContent = 'Question ' + (S.idx + 1) + ' of ' + QUESTIONS.length;
+  el('qtext').textContent = q.prompt;
+  el('bar').style.width = Math.round(100 * S.idx / QUESTIONS.length) + '%';
+  el('score-now').textContent = S.score;
+  const wrap = el('answers'); wrap.innerHTML = '';
+  const choices = tier === 'tier1' ? q.choices.slice(0, 3) : q.choices;
+  choices.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = '<div class="list-item-icon">' + c.e + '</div>' +
+      '<div class="list-item-content"><div class="list-item-title">' + c.t + '</div></div>';
+    row.addEventListener('click', () => pick(i, row, c.t));
+    wrap.appendChild(row);
+  });
+  el('answers').classList.remove('animate-pop', 'animate-pulse');
+  el('confirm-btn').classList.remove('animate-pop', 'animate-pulse');
+  speakThenAct(q.prompt, 'Tap your answer!', el('answers'));
+}
+
+function pick(i, row, label) {
+  if (locked) return;
+  picked = i;
+  document.querySelectorAll('#answers .list-item').forEach(r => r.classList.remove('checked'));
+  row.classList.add('checked');
+  say(label);
+  // selection made — steer the idle nudge at the confirm button now
+  currentHint = 'Now tap "I picked it"!'; cueTarget = el('confirm-btn'); sttNags = 0;
+  armReprompt();
+}
+
+function confirmPick() {
+  if (locked) return;
+  if (picked === null) {
+    say('Tap an answer first!');
+    el('answers').classList.remove('animate-shake');
+    void el('answers').offsetWidth;
+    el('answers').classList.add('animate-shake');
+    return;
+  }
+  locked = true;
+  clearTimeout(sttTimer);
+  const q = QUESTIONS[S.idx];
+  if (picked === q.answer) {
+    S.score += 1; sprout.state.score = S.score;
+    el('score-now').textContent = S.score;
+    sig(S.score > 0 && S.score % 3 === 0 ? 'milestone-reached' : 'attempt-successful');
+    el('fb-good-desc').textContent = q.fact;
+    el('fb-good').classList.remove('hidden');
+    say('You got it! ' + q.fact);
+  } else {
+    sig('attempt-failed');
+    el('fb-bad-desc').textContent = 'The answer was ' + q.choices[q.answer].t + '. ' + q.fact;
+    el('fb-bad').classList.remove('hidden');
+    say('Good try! The answer was ' + q.choices[q.answer].t + '. ' + q.fact);
+  }
+}
+
+function nextQuestion() {
+  S.idx += 1; sprout.state.idx = S.idx;
+  if (S.idx >= QUESTIONS.length) return finishQuiz();
+  renderQuestion();
+}
+
+function finishQuiz() {
+  S.done = true; sprout.state.done = true;
+  clearTimeout(sttTimer);
+  el('fb-good').classList.add('hidden'); el('fb-bad').classList.add('hidden');
+  el('result-line').textContent = 'You got ' + S.score + ' of ' + QUESTIONS.length + '!';
+  el('result-emoji').textContent = S.score === QUESTIONS.length ? '🏆' : S.score >= QUESTIONS.length / 2 ? '🌟' : '💪';
+  showScreen('result');
+  if (S.score >= QUESTIONS.length - 1) sig('celebration', { score: S.score });
+  say('All done! You got ' + S.score + ' out of ' + QUESTIONS.length + '!');
+  try { sprout.complete({ score: S.score, total: QUESTIONS.length }); } catch (e) {}
+}
+
+function finishTap() {
+  try { sprout.complete({ score: S.score, total: QUESTIONS.length }); } catch (e) {}
+}
+
+(async function boot() {
+  try {
+    const me = await sprout.whoami();
+    tier = me.ageTier || 'tier2';
+    if (me.childName) el('hello').textContent = 'Hi ' + me.childName + '!';
+  } catch (e) {}
+  if (S.done) { finishQuiz(); return; }
+  if (sprout.resumed && S.idx > 0) { showScreen('game'); renderQuestion(); }
+})();
+</script>
+</body>
+</html>

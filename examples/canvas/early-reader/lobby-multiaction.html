@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+  .x-hero { text-align: center; padding-top: var(--spacing-xl); }
+  .x-goal-line { color: var(--text-secondary); font-size: var(--font-size-text-md); margin: 0; }
+  .x-gems-pill { display: inline-flex; align-items: center; gap: var(--spacing-sm);
+    background: var(--white); border: 2px solid var(--border-secondary);
+    border-radius: var(--radius-full); padding: var(--spacing-sm) var(--spacing-lg);
+    font-weight: var(--font-weight-bold); box-shadow: 0 2px 0 0 var(--gray-200); }
+  .x-prompt { display: flex; gap: var(--spacing-lg); align-items: center;
+    min-height: 56px; cursor: pointer; }
+  .x-prompt-glyph { font-size: 28px; line-height: 1; }
+  .x-prompt.x-speaking { background: var(--brand-50); border-color: var(--brand-300); }
+  .x-frozen { opacity: 0.4; pointer-events: none; transition: opacity 200ms ease; }
+  .x-steps { margin-bottom: var(--spacing-xl); }
+</style>
+</head>
+<body>
+
+<div class="screen" id="screen-lobby">
+  <div class="top-toolbar">
+    <div class="top-toolbar-leading">
+      <button class="btn btn-util" onclick="replayPrompt()" aria-label="Hear it again" style="width:44px;height:44px;font-size:20px;">🔊</button>
+    </div>
+    <div style="flex:1">
+      <div class="progress-bar"><div class="progress-track"><div class="progress-fill" id="bar" style="width:0%"></div></div></div>
+    </div>
+    <div class="top-toolbar-trailing"><span class="x-gems-pill"><span class="tf">💎</span><span id="gems-count">5</span></span></div>
+  </div>
+
+  <div class="x-hero stack stack-md">
+    <div class="tf" style="font-size:56px; line-height:1; height:56px;" id="mission-hero">🌞</div>
+    <h1 id="hello">Morning Mission</h1>
+    <p class="x-goal-line" id="progress-count">0 of 3 done</p>
+  </div>
+
+  <div class="card x-prompt" id="prompt-card" onclick="replayPrompt()">
+    <span class="tf x-prompt-glyph">🔊</span>
+    <h2 id="mission-line" style="margin:0;">Do your steps, then ask a grown-up to check!</h2>
+  </div>
+
+  <div class="stack stack-lg x-actions x-steps" id="steps"></div>
+
+  <button class="btn btn-secondary btn-lg x-actions" id="btn-practice" onclick="practiceTap()">Practice first 🎵</button>
+  <button class="btn btn-primary btn-lg x-actions" id="btn-mission" onclick="missionTap()">Start my mission!</button>
+</div>
+
+<div class="screen hidden" id="screen-done">
+  <div class="x-hero stack stack-xl" style="padding-top:var(--spacing-5xl);">
+    <div class="tf animate-bounce-in" style="font-size:80px; line-height:1; height:80px;">🎉</div>
+    <h1>Mission complete! ✨</h1>
+    <p id="done-line">Every step is done. Go show a grown-up!</p>
+    <button class="btn btn-primary btn-lg" onclick="finishTap()">All done!</button>
+  </div>
+</div>
+
+<script>
+// SLOT: the mission. gems = the reward shown in the pill (match the task's
+// actual reward). 3 steps for tier1. `spoken` is the replayable mission
+// narration: ≤2 short sentences, actionable clause LAST.
+const MISSION = {
+  title: 'Morning Mission', hero: '🌞', gems: 5,
+  card: 'Do your steps, then ask a grown-up to check!',
+  spoken: 'Time for your Morning Mission! Tap each step when it is done!',
+};
+const STEPS = [
+  { e: '🦷', t: 'Brush your teeth' },
+  { e: '🛏️', t: 'Make your bed' },
+  { e: '🎒', t: 'Pack your bag' },
+];
+const PRACTICE_INTRO = 'You can tap Practice to warm up first!';
+
+const S = sprout.state;
+S.stepsDone ??= [];
+while (S.stepsDone.length < STEPS.length) S.stepsDone.push(false);
+S.stepsDone = S.stepsDone.slice();
+S.finished ??= false;
+let tier = 'tier2', completeFired = false;
+
+function el(id) { return document.getElementById(id); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  el('screen-' + id).classList.remove('hidden');
+}
+function say(text) { try { sprout.tts.speak({ text }).catch(function(){}); } catch (e) {} }
+function sig(name, props) { try { sprout.signal(name, props || {}); } catch (e) {} }
+
+function nextIdx() { return S.stepsDone.findIndex(d => !d); }
+function stepRow(i) { return document.querySelectorAll('#steps .list-item')[i]; }
+function currentHint() {
+  const i = nextIdx();
+  return i === -1 ? 'Tap "Ask a grown-up to check"!' : 'Tap "' + STEPS[i].t + '"!';
+}
+function cueNext() {
+  const i = nextIdx();
+  const target = i === -1 ? el('btn-mission') : stepRow(i);
+  if (!target) return;
+  target.classList.remove('animate-pulse');
+  void target.offsetWidth;
+  target.classList.add('animate-pulse');
+}
+
+// ---- Speak-Then-Act layer (see design/early-readers.md) ----
+let sttTimer = null, sttNags = 0, currentPrompt = '';
+
+function speakThenAct(text) {
+  currentPrompt = text; sttNags = 0;
+  if (tier !== 'tier1') { armReprompt(); return; } // tier2+: no autoplay, speaker on request
+  freeze(true);
+  el('prompt-card').classList.add('x-speaking');
+  const estimate = Math.min(1200 + text.split(/\s+/).length * 320, 6000);
+  let unfrozen = false;
+  const unfreeze = () => {
+    if (unfrozen) return; unfrozen = true;
+    el('prompt-card').classList.remove('x-speaking');
+    freeze(false);
+    cueNext();
+    if (!el('btn-practice').classList.contains('hidden')) {
+      el('btn-practice').classList.add('animate-pop'); // its arrival is the tutorial
+    }
+    armReprompt();
+  };
+  try {
+    sprout.tts.stop().catch(function(){});
+    sprout.tts.speak({ text }).catch(unfreeze); // web preview rejects → usable immediately
+  } catch (e) { unfreeze(); }
+  setTimeout(unfreeze, estimate); // speak resolving ≠ audio finished — the estimate rules
+}
+
+function freeze(on) {
+  document.querySelectorAll('.x-actions').forEach(n => n.classList.toggle('x-frozen', on));
+}
+
+function replayPrompt() { speakThenAct(currentPrompt); }
+
+function armReprompt() {
+  clearTimeout(sttTimer);
+  if (tier !== 'tier1' || sttNags >= 2) return;
+  sttTimer = setTimeout(() => {
+    sttNags += 1;
+    say(currentHint());
+    cueNext();
+    armReprompt();
+  }, 7000);
+}
+
+document.addEventListener('pointerdown', () => { clearTimeout(sttTimer); }, true);
+// ---- end Speak-Then-Act layer ----
+
+function renderSteps() {
+  const wrap = el('steps'); wrap.innerHTML = '';
+  STEPS.forEach((st, i) => {
+    const row = document.createElement('div');
+    row.className = 'list-item' + (S.stepsDone[i] ? ' checked' : '');
+    row.innerHTML = '<div class="list-item-icon">' + st.e + '</div>' +
+      '<div class="list-item-content"><div class="list-item-title">' + st.t + '</div></div>';
+    row.addEventListener('click', () => toggleStep(i, row));
+    wrap.appendChild(row);
+  });
+}
+
+function updateUI() {
+  const n = S.stepsDone.filter(Boolean).length;
+  el('progress-count').textContent = n + ' of ' + STEPS.length + ' done';
+  el('bar').style.width = Math.round(100 * n / STEPS.length) + '%';
+  el('btn-mission').textContent = n === STEPS.length
+    ? 'Ask a grown-up to check! ⭐' : 'Start my mission!';
+  el('btn-practice').classList.toggle('hidden', n > 0); // useful only before the mission starts
+}
+
+function toggleStep(i, row) {
+  if (S.finished) return;
+  const arr = S.stepsDone.slice();
+  arr[i] = !arr[i];
+  S.stepsDone = arr;
+  row.classList.toggle('checked', arr[i]);
+  updateUI();
+  if (arr[i]) {
+    sig('attempt-successful');
+    if (arr.every(Boolean)) {
+      el('btn-mission').classList.add('animate-pop');
+      say('All steps done! Now tap "Ask a grown-up to check"!');
+    } else {
+      say('Nice! ' + STEPS[i].t + ' — done!');
+    }
+  } else {
+    say('Okay, ' + STEPS[i].t + ' is back on the list.');
+  }
+  sttNags = 0; armReprompt();
+}
+
+function practiceTap() {
+  say('Let\'s practice! Big breath in, wiggle your arms — now you are ready!');
+  sttNags = 0; armReprompt();
+}
+
+function missionTap() {
+  if (S.stepsDone.every(Boolean)) return missionDone();
+  const i = nextIdx();
+  say('Not yet! First: ' + STEPS[i].t + '. You can do it!');
+  cueNext();
+  sttNags = 0; armReprompt();
+}
+
+function missionDone() {
+  if (S.finished) { showScreen('done'); return; }
+  S.finished = true;
+  clearTimeout(sttTimer);
+  showScreen('done');
+  sig('celebration');
+  say('Mission complete! You did every single step. Go show a grown-up!');
+  fireComplete();
+}
+
+function fireComplete() {
+  if (completeFired) return;
+  completeFired = true;
+  try { sprout.complete({}); } catch (e) {}
+}
+
+function finishTap() { fireComplete(); }
+
+(async function boot() {
+  try {
+    const me = await sprout.whoami();
+    tier = me.ageTier || 'tier2';
+    if (me.childName) el('hello').textContent = me.childName + '\'s ' + MISSION.title;
+  } catch (e) {}
+  el('mission-hero').textContent = MISSION.hero;
+  el('gems-count').textContent = MISSION.gems;
+  el('mission-line').textContent = MISSION.card;
+  renderSteps();
+  updateUI();
+  if (S.finished) { showScreen('done'); return; }
+  const n = S.stepsDone.filter(Boolean).length;
+  if (n === 0) {
+    speakThenAct(MISSION.spoken + ' ' + PRACTICE_INTRO);
+  } else {
+    speakThenAct('Welcome back! ' + currentHint());
+  }
+  currentPrompt = MISSION.spoken; // card replays the mission, not the practice intro
+})();
+</script>
+</body>
+</html>

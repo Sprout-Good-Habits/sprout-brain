@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+  .x-hero { text-align: center; padding-top: var(--spacing-5xl); }
+  .x-pagecount { color: var(--text-tertiary); font-size: var(--font-size-text-sm); font-weight: var(--font-weight-semibold); }
+  .x-passage { font-size: var(--font-size-text-xl); line-height: 1.8; color: var(--text-primary); margin: 0; }
+  .x-prompt { display: flex; gap: var(--spacing-lg); align-items: flex-start;
+    min-height: 56px; cursor: pointer; }
+  .x-prompt-glyph { font-size: 28px; line-height: 1; padding-top: var(--spacing-xs); }
+  .x-prompt.x-speaking { background: var(--brand-50); border-color: var(--brand-300); }
+  .x-frozen { opacity: 0.4; pointer-events: none; transition: opacity 200ms ease; }
+</style>
+</head>
+<body>
+
+<div class="screen" id="screen-intro">
+  <div class="x-hero stack stack-xl">
+    <div class="tf" style="font-size:64px; line-height:1; height:64px;">🐰</div>
+    <h1 id="hello">Story Time!</h1>
+    <p>Pip the bunny found a balloon. Want to see what happens?</p>
+    <button class="btn btn-primary btn-lg" onclick="startReading()">Start the story!</button>
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-read">
+  <div class="top-toolbar">
+    <div class="top-toolbar-leading">
+      <button class="btn btn-util" onclick="replayPrompt()" aria-label="Read it to me" style="width:44px;height:44px;font-size:20px;">🔊</button>
+    </div>
+    <div style="flex:1">
+      <div class="progress-bar"><div class="progress-track"><div class="progress-fill" id="bar" style="width:0%"></div></div></div>
+    </div>
+    <div class="top-toolbar-trailing"><span class="x-pagecount" id="pagenum">1 / 3</span></div>
+  </div>
+
+  <div class="card x-prompt" id="prompt-card" onclick="replayPrompt()">
+    <span class="tf x-prompt-glyph">🔊</span>
+    <p class="x-passage" id="passage">…</p>
+  </div>
+
+  <div class="row gap-lg x-actions" id="paging">
+    <button class="btn btn-secondary btn-lg" id="btn-prev" onclick="prevPage()" style="flex:1; min-height:48px;">⬅️ Back</button>
+    <button class="btn btn-primary btn-lg" id="btn-next" onclick="nextPage()" style="flex:1; min-height:48px;">Next ➡️</button>
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-result">
+  <div class="x-hero stack stack-xl">
+    <div class="tf animate-bounce-in" style="font-size:80px; line-height:1; height:80px;">🌟</div>
+    <h1>The end!</h1>
+    <p id="result-line"></p>
+    <button class="btn btn-primary btn-lg" onclick="finishTap()">I'm done!</button>
+  </div>
+</div>
+
+<script>
+// SLOT: the story. Tier1: 2-3 short, speakable sentences per page, 3-5 pages.
+const PAGES = [
+  { text: 'Pip the bunny found a big red balloon. It was stuck up in a tree.' },
+  { text: 'Pip jumped and jumped. Hop, hop, hop! The balloon wiggled free.' },
+  { text: 'The balloon lifted Pip up, up, up into the sky. What a ride! Wheee!' },
+];
+
+const S = sprout.state;
+S.page ??= 0; S.elapsed ??= 0; S.done ??= false;
+let tier = 'tier2', timer = null;
+
+function el(id) { return document.getElementById(id); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  el('screen-' + id).classList.remove('hidden');
+}
+function say(text) { try { sprout.tts.speak({ text }).catch(function(){}); } catch (e) {} }
+function sig(name, props) { try { sprout.signal(name, props || {}); } catch (e) {} }
+
+// ---- Speak-Then-Act layer (see design/early-readers.md) ----
+let sttTimer = null, sttNags = 0, currentPrompt = '', currentHint = '', cueTarget = null;
+
+function speakThenAct(text, hint, cueEl) {
+  currentPrompt = text; currentHint = hint || text; cueTarget = cueEl || null; sttNags = 0;
+  if (tier !== 'tier1') { armReprompt(); return; } // tier2+: no autoplay, speaker on request
+  freeze(true);
+  el('prompt-card').classList.add('x-speaking');
+  const estimate = Math.min(1200 + text.split(/\s+/).length * 320, 6000);
+  let unfrozen = false;
+  const unfreeze = () => {
+    if (unfrozen) return; unfrozen = true;
+    el('prompt-card').classList.remove('x-speaking');
+    freeze(false);
+    if (cueTarget) cueTarget.classList.add('animate-pop');
+    armReprompt();
+  };
+  try {
+    sprout.tts.stop().catch(function(){});
+    sprout.tts.speak({ text }).catch(unfreeze); // web preview rejects → usable immediately
+  } catch (e) { unfreeze(); }
+  setTimeout(unfreeze, estimate); // speak resolving ≠ audio finished — the estimate rules
+}
+
+function freeze(on) {
+  document.querySelectorAll('.x-actions').forEach(n => n.classList.toggle('x-frozen', on));
+}
+
+function replayPrompt() {
+  if (tier === 'tier1') return speakThenAct(currentPrompt, currentHint, cueTarget);
+  try { sprout.tts.stop().catch(function(){}); } catch (e) {}
+  say(currentPrompt);
+}
+
+function armReprompt() {
+  clearTimeout(sttTimer);
+  if (tier !== 'tier1' || sttNags >= 2) return;
+  sttTimer = setTimeout(() => {
+    sttNags += 1;
+    say(currentHint);
+    if (cueTarget) {
+      cueTarget.classList.remove('animate-pulse');
+      void cueTarget.offsetWidth;
+      cueTarget.classList.add('animate-pulse');
+    }
+    armReprompt();
+  }, 7000);
+}
+
+document.addEventListener('pointerdown', () => { clearTimeout(sttTimer); }, true);
+// ---- end Speak-Then-Act layer ----
+
+function startTimer() {
+  if (timer) return;
+  timer = setInterval(() => { if (!S.done) S.elapsed += 1; }, 1000);
+}
+
+function startReading() { showScreen('read'); startTimer(); renderPage(); }
+
+function renderPage() {
+  const p = PAGES[S.page];
+  const last = S.page === PAGES.length - 1;
+  el('passage').textContent = p.text;
+  el('pagenum').textContent = (S.page + 1) + ' / ' + PAGES.length;
+  el('bar').style.width = Math.round(100 * (S.page + 1) / PAGES.length) + '%';
+  el('btn-prev').classList.toggle('hidden', S.page === 0);
+  el('btn-next').textContent = last ? 'The End! 🎉' : 'Next ➡️';
+  el('btn-next').classList.remove('animate-pop', 'animate-pulse');
+  speakThenAct(p.text,
+    last ? 'Tap "The End" to finish the story!' : 'Tap the arrow for the next page!',
+    el('btn-next'));
+}
+
+function prevPage() {
+  if (S.page === 0) return;
+  S.page -= 1;
+  renderPage();
+}
+
+function nextPage() {
+  if (S.page >= PAGES.length - 1) return finishStory();
+  S.page += 1;
+  sig('attempt-successful');
+  renderPage();
+}
+
+function finishStory() {
+  S.done = true;
+  if (timer) { clearInterval(timer); timer = null; }
+  clearTimeout(sttTimer);
+  const m = Math.floor(S.elapsed / 60), s = S.elapsed % 60;
+  el('result-line').textContent = 'You read all ' + PAGES.length + ' pages in ' + m + 'm ' + s + 's! Pip says thank you!';
+  showScreen('result');
+  sig('celebration', { pages: PAGES.length });
+  say('The end! You read the whole story. Great job!');
+  try { sprout.complete({ duration: S.elapsed }); } catch (e) {}
+}
+
+function finishTap() {
+  try { sprout.complete({ duration: S.elapsed }); } catch (e) {}
+}
+
+(async function boot() {
+  try {
+    const me = await sprout.whoami();
+    tier = me.ageTier || 'tier2';
+    if (me.childName) el('hello').textContent = 'Story time, ' + me.childName + '!';
+  } catch (e) {}
+  if (S.done) { finishStory(); return; }
+  if (sprout.resumed && (S.page > 0 || S.elapsed > 0)) { startReading(); }
+})();
+</script>
+</body>
+</html>
