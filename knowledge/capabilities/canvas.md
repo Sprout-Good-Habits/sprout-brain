@@ -33,6 +33,9 @@ Use canvases for:
   manifest-declared bundle assets (e.g. `fetch('models/example.glb')`) are
   allowed for assets uploaded with the canvas.
 - Canvases must emit exactly one terminal completion signal.
+- `canvas.update` content-refresh loops run on the HOME AGENT's own cron
+  (home_agent skill + `skill.invoke`), never on a heartbeat — the scheduled
+  executor has no canvas tools (see heartbeat.md).
 - Canvases persist run state across reopens via `sprout.state` (auto-saved); the
   child resumes where they left off. Durable run state only — no PII, JSON-serializable.
 - A canvas can make the Sprout buddy speak aloud via `sprout.tts.speak({ text })`
