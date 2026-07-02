@@ -71,6 +71,11 @@ Design (category `design` — hard errors in the in-app authoring path):
       (`sprout.tts.speak` in try/catch; on-screen text stays the source of
       truth), and apply the full Speak-Then-Act layer — auto-spoken prompt,
       staged actions, whole-card replay, idle re-prompt (`early-readers.md`).
+- [ ] **Cancel voice on transition** — if a canvas speaks, the screen-change /
+      next-item handler calls `sprout.tts.stop()` FIRST, so a previous screen's
+      narration never bleeds onto the next screen (even a silent one). Stop
+      before every `speak` and before `complete` too. The archetype `showScreen`
+      / `say` helpers already do this — keep it if you hand-roll a transition.
 - [ ] **Celebrate the finish** — result screen uses the big-emoji + spark
       pattern (`archetypes/result-celebration.md`), not a bare score line.
 - [ ] **Age-tier adaptation applied** (`age-tiers.md`): tier1 ⇒ ≤3 choices,

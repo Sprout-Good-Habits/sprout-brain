@@ -103,10 +103,11 @@ let tier = 'tier2', locked = false, seq = [], sel = -1, matchedCount = 0, mistak
 
 function el(id) { return document.getElementById(id); }
 function showScreen(id) {
+  try { sprout.tts.stop().catch(function(){}); } catch (e) {} // cancel in-flight narration so it does not bleed onto the next screen
   document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
   el('screen-' + id).classList.remove('hidden');
 }
-function say(text) { try { sprout.tts.speak({ text }).catch(function(){}); } catch (e) {} }
+function say(text) { try { sprout.tts.stop().catch(function(){}); sprout.tts.speak({ text }).catch(function(){}); } catch (e) {} }
 function sig(name, props) { try { sprout.signal(name, props || {}); } catch (e) {} }
 function shake(node) {
   node.classList.remove('animate-shake');
