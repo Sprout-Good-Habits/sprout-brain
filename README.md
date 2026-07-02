@@ -17,6 +17,16 @@ sprout-brain/
 ├── llms.md       # agent index — every doc as a URL + one-liner
 ├── canvas/
 │   └── sdk.md    # the window.sprout.* contract for Sprout-served canvases
+├── design/       # the kid design language for canvases
+│   ├── README.md         # freshness contract + reading order
+│   ├── checklist.md      # ship gate (mirrors the server analyzer)
+│   ├── components.md     # injected component API
+│   ├── tokens.md         # GENERATED token reference
+│   ├── layout.md · motion.md · age-tiers.md
+│   ├── archetypes/       # copy-paste screen skeletons (quiz, sorting, …)
+│   └── generated/        # GENERATED class/token inventory (lint target)
+├── scripts/
+│   └── sync-design-inventory.mjs  # generate tokens/inventory + lint design docs
 ├── skills/
 │   ├── README.md
 │   ├── sprout-solutions-architect/
@@ -32,7 +42,7 @@ sprout-brain/
 └── evals/
 ```
 
-Future siblings: `mcp/`, `design/`, `voice/`, `skill-authoring/` — same shape.
+Future siblings: `mcp/`, `voice/`, `skill-authoring/` — same shape.
 
 ## Install Sprout Brain skills
 

@@ -1,6 +1,6 @@
 ---
 name: canvas-planner
-description: "Use before authoring a Sprout canvas (a kid-facing HTML activity) to plan its design in the Sprout child design language. Produces a layout plan — page archetype, an ASCII mock, the artifact-kit components to use and where, tokens, age-tier adaptation, and the SDK behavior hooks — so the canvas you then build looks and behaves like a native Sprout child screen instead of generic HTML."
+description: "Use before authoring a Sprout canvas (a kid-facing HTML activity) to plan its design in the Sprout child design language. Picks a page archetype, names the copy-paste skeleton to start from, and produces a slot-fill plan — data block, copy, tier adaptations, SDK behavior hooks, and the polish checklist — so the canvas you then build looks and behaves like a native Sprout child screen even when authored by a small model."
 ---
 
 # Canvas Planner
@@ -9,73 +9,100 @@ description: "Use before authoring a Sprout canvas (a kid-facing HTML activity) 
 
 Plan a canvas's design **before** you write its HTML, so the result follows the
 Sprout child design system instead of ad-hoc styling. A canvas is authored HTML
-that runs in a locked sandbox; it reproduces the design language in its own
-markup (it cannot import the child component library). This skill turns a canvas
-idea into a concrete, buildable design plan.
+running in a locked sandbox; it reproduces the design language in its own markup
+(it cannot import the child component library).
+
+The core move: **do not compose screens from scratch — start from an archetype
+skeleton and fill its slots.** The skeletons in `design/archetypes/` are
+complete, analyzer-clean, SDK-wired canvases with marked content slots. Polish
+lives in the skeleton; the plan's job is choosing the right one and specifying
+what goes in the slots.
 
 Use it for prompts like:
 
 - "Design a multiplication quiz canvas for my 7-year-old."
 - "Plan a reading check-in activity."
 - "I want a mission-lobby screen that shows reward progress."
-- "Make a journal canvas that feels like the Sprout app."
+- "Make a matching game that feels like the Sprout app."
 
-## Docs to load
+## Archetype catalog (pick one)
 
-Load only what the plan needs — do not pour the whole brain into context:
+| Archetype | Skeleton | Pick when |
+| --- | --- | --- |
+| Quiz / question flow | `design/archetypes/quiz.md` | N questions, right/wrong answers, score at the end |
+| Sorting / matching game | `design/archetypes/sorting-matching.md` | tap-in-order or match-pairs mechanics, tile grid |
+| Reading / passage | `design/archetypes/reading.md` | read-along pages, read-aloud, time-based completion |
+| Journal / reflection | `design/archetypes/journal.md` | open-ended prompts, sentence starters, share-back |
+| Mission lobby / dashboard | `design/archetypes/mission-lobby.md` | progress toward a goal, step checklist, single CTA |
+| Result / celebration | `design/archetypes/result-celebration.md` | the finish screen of ANY of the above (drop-in) |
 
-- `canvas/design-patterns.md` — page archetypes, button placement, the
-  component-default decision table, age-tier adaptation. **Start here.**
-- `canvas/artifact-kit.md` — the component API (exact classes + markup) and
-  design tokens. Load when choosing/placing components.
-- `canvas/sdk.md` — behavior: `whoami` (identity + `ageTier`), `state` (resume),
-  `signal`, `complete`, `tts`, `rive`. Load when wiring behavior hooks.
+A novel mechanic still starts from the nearest archetype (usually quiz or
+sorting-matching) and swaps the interaction zone — chrome, state, feedback,
+and completion carry over unchanged.
+
+## Docs to load — staged, not all at once
+
+1. **Always:** `design/checklist.md` (the ship gate) + the ONE chosen
+   `design/archetypes/*.md` + `design/age-tiers.md` (short).
+2. **Only if the plan goes beyond the skeleton:** `design/components.md`
+   (full component API), `design/layout.md` (screen anatomy, custom
+   containers), `design/motion.md` (custom animation, sparkles, Rive).
+3. **Only for custom `x-` styling:** `design/tokens.md` (generated token
+   reference; `design/generated/inventory.json` is the machine-checked list of
+   every class/token that exists at runtime).
+4. **For behavior beyond the skeleton's wiring:** `canvas/sdk.md`
+   (`whoami`, `state` resume rules, `signal`, `complete`, `tts`, `rive`,
+   library loading via the canvas-CDN proxy).
+
+Do not pour the whole design system into context — the skeleton already
+embodies most of it.
 
 ## What this skill does
 
-Walks the canvas idea through a design plan:
-
-1. **Clarify intent** — activity type, subject, `ageTier` (or read it via
-   `whoami` at runtime), and the completion type (scored / timed / open-ended).
-2. **Pick a page archetype** from `design-patterns.md` (quiz, reading, journal,
-   mission lobby, sorting/matching, result). Name it and why it fits.
-3. **ASCII layout mock** — a text sketch of the screen(s), top to bottom. This is
-   the alignment artifact: agree on layout in text before writing HTML.
-4. **Component plan** — for each region, the artifact-kit component to use, its
-   placement (from the decision table), and the **behavior to reproduce** —
-   states, interaction, transition (see `design-patterns.md` → Component
-   behavior). One primary CTA per screen; visible submit always; feedback banners
-   pinned bottom with their own action.
-5. **Tokens & spacing** — the tokens for color/spacing/radius/type; single-column,
-   mobile-first, 44px touch targets. No hardcoded hex.
-6. **Research a library if it helps** — for a specialized interaction, actively
-   search for a popular, well-maintained JS library that fits (e.g. Hanzi Writer
-   for character-writing practice; a music, physics, drawing, or math-rendering
-   library for those domains). Before recommending it, vet it against the
-   canvas-library checklist in `design-patterns.md` (npm+jsdelivr, pinned, **no
-   external network at runtime** — route any data through the same-origin proxy,
-   no web workers). If it loads data, plan the proxy `charDataLoader`-style hook.
-7. **Behavior hooks** — which SDK calls: `whoami` for personalization + tier,
-   `state` for resume, `signal` at meaningful moments, exactly one `complete`,
-   `tts` for read-aloud, `rive` for character/motion.
-8. **Age-tier adaptation** — how the layout changes for tier1 vs tier3 (target
-   size, choice count, text density, read-aloud).
-9. **Handoff** — the plan feeds canvas authoring (`canvas.create` →
-   `skill.write` → `task.create`). Remind that the build must stay in the
-   artifact-kit envelope and the sandbox safety rules (`sdk.md` → Rules).
+1. **Clarify intent** — activity type, subject, age tier (or read via `whoami`
+   at runtime), completion type (scored / timed / open-ended), reward context.
+2. **Pick the archetype** from the catalog. Name it and why it fits.
+3. **Slot-fill plan** — for the chosen skeleton, specify exactly:
+   - the **data block** content (questions/rounds/pages/steps — the actual
+     items, themed to the child's interests; short, speakable prompts)
+   - intro copy + hero emoji; result copy + score bands
+   - any interaction-zone swap (e.g. tile grid instead of list-items) and
+     which `x-` rebuild from the archetype library it uses
+   - anything intentionally NOT changed (default: everything else)
+4. **Age-tier adaptation** — the tier1/2/3 deltas per `design/age-tiers.md`
+   (choice counts, read-aloud, rounds).
+5. **Behavior hooks** — confirm the skeleton's SDK wiring covers it (state
+   resume, signals, one completion, tts); plan additions only for novel
+   behavior. For dynamic content, generate INTO `sprout.state` so resume
+   replays the same round.
+6. **Research a library if the mechanic needs one** — for specialized
+   interactions (character writing, music, physics, drawing), find a
+   well-maintained JS library and vet it against the canvas rules
+   (`canvas/sdk.md` → Rules): npm + jsdelivr, version-pinned, loaded only via
+   `/api/canvas-cdn/jsdelivr/npm/<pkg>@<version>/<file>`, no external network
+   at runtime (route data through the same-origin proxy), no workers, no WASM
+   outside `sprout.rive`.
+7. **Checklist acknowledgment** — the plan ends by committing to
+   `design/checklist.md`: build → self-check → `canvas.create { dryRun: true }`
+   → fix every analyzer finding except the two documented false positives
+   (runtime-filled screens, addEventListener-wired buttons) → commit.
 
 ## Output shape
 
-A short design plan: archetype + ASCII mock + a component/placement list + tokens
-+ behavior hooks + tier notes. Concrete enough to author from directly; it is a
-plan, not the final HTML.
+A short plan: archetype + skeleton path + slot-fill spec (the data block
+written out, not gestured at) + tier deltas + any beyond-skeleton components
+with their `x-` rebuild source + checklist commitment. An ASCII mock only when
+the layout deviates from the skeleton — otherwise the skeleton IS the mock.
+Concrete enough that the builder's only creative work is content.
 
 ## What this skill does not do
 
-- It does not write the final canvas HTML — it plans it. (Author separately, then
-  deliver via a skill + task.)
-- It does not invent components. If a need isn't in `artifact-kit.md`, it plans a
-  rebuild in the design language using tokens — never an external stylesheet.
-- It does not load external UI or the child app's design-system CDN (blocked by
-  the sandbox); the design system is a spec to follow, not a stylesheet to link.
-- It does not deliver anything to a kid (authoring ≠ delivery — see `sdk.md`).
+- It does not write the final canvas HTML — it plans it. (Author separately,
+  then deliver via a skill + task; authoring ≠ delivery — see `canvas/sdk.md`.)
+- It does not invent components. If a need isn't in `design/components.md`,
+  it plans an `x-` rebuild from `design/tokens.md` tokens — never an external
+  stylesheet, never a restyle of a kit class.
+- It does not load external UI or the child app's design-system CDN (blocked
+  by the sandbox); the design system is a spec to follow, not a stylesheet to
+  link.
+- It does not deliver anything to a kid.

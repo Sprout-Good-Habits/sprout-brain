@@ -28,9 +28,10 @@ doc to load. It should not load the entire brain into context.
 
 `canvas-planner` plans a canvas's design before it is authored, so the resulting
 kid-facing HTML follows the Sprout child design language instead of ad-hoc
-styling. It loads `canvas/design-patterns.md`, `canvas/artifact-kit.md`, and
-`canvas/sdk.md`, and produces a layout plan (page archetype, ASCII mock,
-components + placement, tokens, SDK behavior hooks, age-tier adaptation).
+styling. It stages the `design/` domain docs — always `design/checklist.md` +
+one `design/archetypes/*.md` skeleton (+ `canvas/sdk.md` for behavior) — and
+produces a slot-fill plan: archetype, the skeleton to copy, data-block content,
+tier adaptations, and the polish-checklist commitment.
 
 Use it before building any canvas activity.
 

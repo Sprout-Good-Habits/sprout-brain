@@ -8,15 +8,31 @@ URLs are raw GitHub paths on the `main` branch.
 ## Canvas
 
 - [canvas/sdk.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/sdk.md) — The `window.sprout.*` SDK contract for Sprout-served canvases: identity reads, external learning links (`openExternalUrl`), buddy voice (`sprout.tts`), Rive animations (`sprout.rive`), Canvas Memory (`sprout.state` auto-persist + resume), multiplayer sessions (`sprout.session`), signals, completion (`sprout.complete(opts)` canonical), upload flows, concurrency (`expectedVersion`), error handling, and the Released/Roadmap status legend.
-- [canvas/artifact-kit.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/artifact-kit.md) — The Sprout design system for canvas artifacts: CSS component classes, layout helpers, design tokens, typography, animations.
-- [canvas/design-patterns.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/design-patterns.md) — The design layer on top of the artifact kit: page archetypes, button placement, the component-default decision table, and age-tier adaptation for authoring canvases in the Sprout child design language.
+- [canvas/artifact-kit.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/artifact-kit.md) — MOVED: superseded by the `design/` domain (pointer doc).
+- [canvas/design-patterns.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/design-patterns.md) — MOVED: superseded by the `design/` domain (pointer doc).
+
+## Design (kid design language for canvases)
+
+- [design/README.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/README.md) — Orientation for the design domain: the generated-and-linted freshness contract with sprout-app's injected stylesheet, and reading order.
+- [design/checklist.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/checklist.md) — The canvas ship gate: every server analyzer rule (functional + design) as a pass/fail checklist, plus the kid design system's golden rules and how to self-verify with a dry-run.
+- [design/components.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/components.md) — The injected component API: every runtime class with specs and markup (buttons, cards, list items, feedback banners, progress, toolbar, sheet, toast, task cards, branded sky/grass scenes), plus what does NOT exist and how to rebuild it with tokens.
+- [design/tokens.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/tokens.md) — GENERATED design-token reference (fonts, spacing, radius, color ramps, semantic tokens) extracted from the runtime stylesheet with the source commit stamped.
+- [design/layout.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/layout.md) — Body defaults, the three-screen anatomy, spacing rhythm, branded scenes, and TossFace emoji sizing rules.
+- [design/motion.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/motion.md) — Built-in component motion, animate-* utilities, sparkle celebrations, Rive, timing reference, and signal-driven buddy reactions.
+- [design/age-tiers.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/age-tiers.md) — The tier1/2/3 adaptation table: choices, touch targets, text density, read-aloud, rounds, feedback style.
+- [design/archetypes/quiz.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/archetypes/quiz.md) — Copy-paste quiz skeleton: N questions, list-item answers, feedback banners, scored completion.
+- [design/archetypes/sorting-matching.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/archetypes/sorting-matching.md) — Copy-paste sort/match tile-game skeleton: tap-in-order and match-pairs rounds on a tile grid.
+- [design/archetypes/reading.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/archetypes/reading.md) — Copy-paste read-along skeleton: paged passages, read-aloud, timed completion.
+- [design/archetypes/journal.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/archetypes/journal.md) — Copy-paste journal/reflection skeleton: tier-branched sentence starters vs free input, summary completion.
+- [design/archetypes/mission-lobby.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/archetypes/mission-lobby.md) — Copy-paste mission dashboard skeleton: goal progress, gems pill rebuild, step checklist, single CTA.
+- [design/archetypes/result-celebration.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/archetypes/result-celebration.md) — The celebration result screen: branded sky/grass scene, sparkles, score bands — drop-in finish for any archetype.
 
 ## Skills
 
 - [skills/README.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/README.md) — What Sprout Brain skills do, how core architect skills differ from platform skills, and local/public install guidance.
 - [skills/install-sprout-partner-skills/SKILL.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/install-sprout-partner-skills/SKILL.md) — Installable skill for installing or updating Sprout Brain skills into Codex and Claude Code local skill directories.
 - [skills/sprout-solutions-architect/SKILL.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/sprout-solutions-architect/SKILL.md) — Installable skill for planning Sprout-shaped kid programs, parent activities, external home-agent integrations, rewards, and marketplace adoption/remix.
-- [skills/canvas-planner/SKILL.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/canvas-planner/SKILL.md) — Installable skill for planning a canvas's design (page archetype, ASCII mock, artifact-kit components, tokens, SDK behavior hooks) in the Sprout child design language before authoring it.
+- [skills/canvas-planner/SKILL.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/skills/canvas-planner/SKILL.md) — Installable skill for planning a canvas's design before authoring it: picks a page archetype, names the copy-paste skeleton from design/archetypes/, and produces a slot-fill plan with tier adaptations and the polish-checklist commitment.
 
 ## Solutions Architect
 
