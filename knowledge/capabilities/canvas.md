@@ -2,7 +2,11 @@
 
 Agents can author custom HTML canvases and attach them to skills.
 
-Last verified: 2026-07-01
+Engine-structure patterns proven in production (content-update seam, state
+schema, analyzable completion, resume, QA) live in
+`../../canvas/worked-patterns.md`.
+
+Last verified: 2026-07-02
 
 ## Tools
 

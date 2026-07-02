@@ -57,6 +57,12 @@ and completion carry over unchanged.
 4. **For behavior beyond the skeleton's wiring:** `canvas/sdk.md`
    (`whoami`, `state` resume rules, `signal`, `complete`, `tts`, `rive`,
    library loading via the canvas-CDN proxy).
+5. **For long-lived / content-updating canvases** (a coach loop will
+   regenerate content, or state must survive lesson swaps):
+   `canvas/worked-patterns.md` — the LESSON data seam, ASCII-only state keys,
+   statically-analyzable `complete()`, the resume contract, and proven
+   interaction-engine recipes (flip-grid, coverage painting, syllable frame,
+   stroke tracing) with the headless QA drive set.
 
 Do not pour the whole design system into context — the skeleton already
 embodies most of it.

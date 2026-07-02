@@ -5,7 +5,7 @@ A program is a reusable, parent-authored template — a tree of units and tasks
 once and assigns to one or more children. Assigning it stamps out concrete,
 dated tasks for that child.
 
-Last verified: 2026-07-01
+Last verified: 2026-07-02
 
 ## Tools
 
@@ -49,3 +49,38 @@ Last verified: 2026-07-01
 - Validation is strict — unknown keys (typos) fail rather than silently drop.
   `assignmentSkillId` / `sourceSkillId` are immutable.
 - Do not invent fields. Author within the shared-task shape the tools accept.
+
+## Surfacing on the kid lobby (structure doctrine)
+
+Write-side success is NOT kid-visible. The kid lobby resolves a program
+assignment via its `current_unit_id` and renders **that unit plus ONE level of
+child units**; an assignment with no visible task content today is **omitted
+from the lobby entirely** — no empty card, no hint it exists. Structure your
+program so this renderer always has something to show:
+
+- **Author exactly ONE root umbrella unit per program.** It is the entry point
+  the lobby resolves to. Nest parallel tracks as child units under it; put
+  tasks on the child units.
+
+  ```
+  program
+  └── root umbrella unit        ← current_unit_id resolves here
+      ├── child unit A          ← rendered (one level down)
+      │   └── tasks
+      └── child unit B          ← rendered
+          └── tasks
+  ```
+
+  `program → root unit → child units → tasks` is the V1 depth cap (3 levels of
+  structure). **Multiple root units = invisible siblings**: the lobby resolves
+  to one root and never renders the others (real production incident,
+  SPR-1944).
+- **Schedule so weekdays are non-empty.** At least one daily task guarantees
+  the assignment surfaces every day; a program whose tasks all fall on
+  weekends vanishes from the lobby Monday-Friday.
+- **Verify on the KID surface** (lobby / assignment view), not just
+  `task.list`. Tasks existing in the database does not mean the kid can see
+  the program today.
+- Known read-surface caveat: the `program.getAssignment` tree currently
+  mis-renders canvas tasks as `self_check` — `task.describe` is ground truth
+  for a task's real shape (fix in flight).
