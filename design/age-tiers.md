@@ -28,7 +28,8 @@ try { tier = (await sprout.whoami()).ageTier; } catch (e) {}
 
 - **Tier1 is the floor for polish** — if the canvas works for a pre-reader
   (speakable prompts, tap-only, nothing depends on reading), higher tiers only
-  need denser content, not new mechanics.
+  need denser content, not new mechanics. The tier1 voice/button interaction
+  contract lives in `early-readers.md` (Speak-Then-Act).
 - **Adapt content, not chrome** — the toolbar/progress/feedback skeleton stays
   identical across tiers; what changes is choice count, text density, rounds,
   and read-aloud.

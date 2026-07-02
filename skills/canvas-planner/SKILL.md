@@ -44,6 +44,10 @@ and completion carry over unchanged.
 
 1. **Always:** `design/checklist.md` (the ship gate) + the ONE chosen
    `design/archetypes/*.md` + `design/age-tiers.md` (short).
+   **For tier1 / pre-reader canvases, also `design/early-readers.md`** — the
+   Speak-Then-Act voice layer (auto-spoken prompts, staged actions, whole-card
+   replay); `examples/canvas/early-reader/` has complete golden examples to
+   copy when one matches the archetype.
 2. **Only if the plan goes beyond the skeleton:** `design/components.md`
    (full component API), `design/layout.md` (screen anatomy, custom
    containers), `design/motion.md` (custom animation, sparkles, Rive).
@@ -70,7 +74,9 @@ embodies most of it.
      which `x-` rebuild from the archetype library it uses
    - anything intentionally NOT changed (default: everything else)
 4. **Age-tier adaptation** — the tier1/2/3 deltas per `design/age-tiers.md`
-   (choice counts, read-aloud, rounds).
+   (choice counts, read-aloud, rounds). For tier1, the plan applies the
+   Speak-Then-Act layer from `design/early-readers.md` (or starts from the
+   matching golden example in `examples/canvas/early-reader/`).
 5. **Behavior hooks** — confirm the skeleton's SDK wiring covers it (state
    resume, signals, one completion, tts); plan additions only for novel
    behavior. For dynamic content, generate INTO `sprout.state` so resume

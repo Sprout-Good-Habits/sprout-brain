@@ -69,7 +69,8 @@ Design (category `design` — hard errors in the in-app authoring path):
       `celebration` at the big finish. Pick the most specific one, not several.
 - [ ] **TTS for pre-readers** — tier1 canvases read prompts aloud
       (`sprout.tts.speak` in try/catch; on-screen text stays the source of
-      truth).
+      truth), and apply the full Speak-Then-Act layer — auto-spoken prompt,
+      staged actions, whole-card replay, idle re-prompt (`early-readers.md`).
 - [ ] **Celebrate the finish** — result screen uses the big-emoji + spark
       pattern (`archetypes/result-celebration.md`), not a bare score line.
 - [ ] **Age-tier adaptation applied** (`age-tiers.md`): tier1 ⇒ ≤3 choices,

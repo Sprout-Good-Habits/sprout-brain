@@ -29,6 +29,7 @@ node scripts/sync-design-inventory.mjs --lint
 | `checklist.md` | The ship gate — mirrors the server analyzer rule-for-rule, plus the golden rules. Read ALWAYS. |
 | `archetypes/*.md` | Copy-paste, analyzer-clean HTML skeletons per page archetype. **Start every canvas here** — fill slots, don't compose from scratch. |
 | `age-tiers.md` | tier1/2/3 adaptation table. |
+| `early-readers.md` | The tier1 voice layer: Speak-Then-Act loop, whole-card replay, staged actions. Read for any pre-reader canvas; golden examples in `../examples/canvas/early-reader/`. |
 | `components.md` | The full injected component API (classes, specs, markup) + what does NOT exist and how to rebuild it. |
 | `layout.md` | Body defaults, screen anatomy, spacing rhythm, branded scenes, emoji sizing. |
 | `motion.md` | Built-in motion, animate-* utilities, sparkles, timing, signals-as-motion. |
