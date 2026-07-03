@@ -38,18 +38,35 @@ Install all Sprout Brain skill folders under `skills/` that contain a
 `SKILL.md`, including:
 
 - `sprout-solutions-architect`
+- `canvas-planner`
 - `install-sprout-partner-skills`
 - future platform skills under `skills/platforms/`
 
 Do not install non-skill docs such as `knowledge/`, `examples/`, or `evals/`.
 The skills reference those docs through `llms.md` and raw GitHub fallback URLs.
 
+## Prefer the no-clone paths when there is no local repo
+
+If there is no local `sprout-brain` checkout, do NOT clone just to install.
+Use one of these instead (details in the repo README's "Install Sprout Brain
+skills" section):
+
+- Any agent with Node.js: `npx skills add Sprout-Good-Habits/sprout-brain`
+- Claude Code: `/plugin marketplace add Sprout-Good-Habits/sprout-brain` then
+  `/plugin install sprout-skills@sprout-brain`
+- No prerequisites at all: download
+  `https://github.com/Sprout-Good-Habits/sprout-brain/archive/refs/heads/main.zip`,
+  extract, and copy each `skills/` folder containing a `SKILL.md` into the
+  target tool's user-level skills directory.
+
+The script workflow below is for machines that already have the repo cloned.
+
 ## Workflow
 
 1. Resolve the `sprout-brain` repo root.
    - If running inside the repo, use the current working directory.
-   - Otherwise, ask the user for the local repo path or clone/open the public
-     repo when available.
+   - Otherwise, prefer a no-clone path above; fall back to asking the user for
+     the local repo path.
 
 2. Determine install target.
    - If the user named Codex, Claude, or both, use that.

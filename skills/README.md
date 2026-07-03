@@ -68,66 +68,10 @@ selectors, bypass instructions, or terms-sensitive extraction details.
 
 ## Installation
 
-Prerequisites:
-
-- Git
-- Python 3
-- Codex and/or Claude Code installed locally
-- Access to this repo
-
-Clone the repo:
-
-```bash
-git clone https://github.com/Sprout-Good-Habits/sprout-brain.git
-cd sprout-brain
-```
-
-Preview what will be installed:
-
-```bash
-python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target all --dry-run
-```
-
-Install for both Codex and Claude Code:
-
-```bash
-python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target all
-```
-
-Install for only Codex:
-
-```bash
-python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target codex
-```
-
-Install for only Claude Code:
-
-```bash
-python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target claude
-```
-
-The installer copies Sprout Brain skill folders into the standard local skill
-directories for Codex and Claude Code. Existing Sprout skill folders are backed
-up before replacement.
-
-After installing, start a new Codex or Claude Code session so the skill metadata
-is loaded.
-
-Then try:
-
-```text
-Use $sprout-solutions-architect to help me plan a Sprout activity.
-```
-
-To update later:
-
-```bash
-cd sprout-brain
-git pull
-python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target all
-```
-
-Start a new Codex or Claude Code session after updating.
+See "Install Sprout Brain skills" in the [root README](../README.md) — it
+covers the one-command install (`npx skills add Sprout-Good-Habits/sprout-brain`),
+the Claude Code plugin marketplace, Hermes, OpenClaw, a zero-prerequisite
+fallback for any agent, and the clone-based Python installer for contributors.
 
 ## Expected user experience
 
