@@ -87,6 +87,11 @@ embodies most of it.
    resume, signals, one completion, tts); plan additions only for novel
    behavior. For dynamic content, generate INTO `sprout.state` so resume
    replays the same round.
+   **Progress bar:** never draw one — the Sprout app renders its branded bar
+   above the canvas. Declare it with `sprout.progress.setup({ total?,
+   milestones?, emoji?, timer? })` (re-call per page/phase), move it with
+   `sprout.progress.set({ current, total })`, and `hide()` it on results /
+   free-play screens. No `setup()` ⇒ no bar. See `canvas/sdk.md` § Progress.
 6. **Research a library if the mechanic needs one** — for specialized
    interactions (character writing, music, physics, drawing), find a
    well-maintained JS library and vet it against the canvas rules

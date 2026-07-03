@@ -26,9 +26,9 @@ Every method below is tagged **Released** or **Roadmap**.
   ships.
 
 Released today: `whoami`, `openExternalUrl`, `sprout.tts.speak` /
-`sprout.tts.stop`, `sprout.rive.resolveAsset`, `signal`, `score` / `complete` /
-`timed`, and the legacy `SproutBridge`. Everything in the **Roadmap** section
-below is not callable yet.
+`sprout.tts.stop`, `sprout.rive.resolveAsset`, `signal`, `sprout.progress`
+(`setup` / `show` / `hide` / `set` / `clear`), `score` / `complete` / `timed`, and the legacy
+`SproutBridge`. Everything in the **Roadmap** section below is not callable yet.
 
 ---
 
@@ -662,6 +662,96 @@ keep `props` JSON-serializable.
 
 ---
 
+## Progress — host-rendered bar (Released)
+
+```ts
+sprout.progress.setup(spec: {
+  total?: number;                       // step count → counter / milestone circles
+  milestones?: 'auto' | 'none';         // checkpoint circles (default 'auto'; 'none' with emoji)
+  emoji?: string;                       // ONE emoji riding the fill head
+  timer?: { targetSeconds: number };    // right-side m:ss countdown (host clock)
+}): void;
+sprout.progress.show(): void;
+sprout.progress.hide(): void;
+sprout.progress.set(progress: { current: number; total: number }): void;
+sprout.progress.clear(): void;
+```
+
+The Sprout app draws **one branded progress bar above the canvas**. The bar
+is part of YOUR canvas's design — you declare it, dress it, and move it; the
+host owns the visuals (Sprout track, fill, milestone circles, countdown).
+**Do NOT draw your own progress bar** — no `.progress-bar` markup, no custom
+track/fill, no countdown headers. An in-canvas bar costs kid screen space,
+duplicates chrome, and can't get the Sprout-branded treatments.
+
+**The bar exists only after `setup()`.** Calling `set()` without a prior
+`setup()` renders nothing — declaring the bar is the explicit opt-in. Call
+`setup()` early (top of your script), then report position as the kid moves.
+
+All five calls are **fire-and-forget**, exactly like `signal`: no return
+value, nothing to `await`, and they never throw — no `try / catch` needed.
+
+Semantics:
+
+- **`setup()` is re-callable.** A multi-page canvas re-declares the bar per
+  phase — new `total`, timer on/off, emoji — and the host re-dresses the
+  same bar in place. Each timer-carrying setup restarts the countdown.
+- **Steps, not fractions.** Report `{ current: 2, total: 5 }` for "question
+  2 of 5" — never a 0-1 fraction. `current` ≥ 0, `total` ≥ 1.
+- **Milestone circles are automatic.** With `milestones: 'auto'` (the
+  default) the host places numbered Kid-DS checkpoint circles on a 1-2-5
+  ladder — every step for ≤ 6 steps, every 5th for 15, every 10th for 40 —
+  capped at 6 circles at any total; 3-digit totals switch to label-less
+  circles that tick a ✓ as the fill passes. Pass `'none'` for a clean track
+  (an `emoji` rider defaults milestones off — the rider owns the track).
+- **The host clamps.** Out-of-range `current` is clamped to `[0, total]` —
+  report honest values; clamping is a safety net, not an API.
+- **Backward moves are allowed.** If the kid taps Back, report the smaller
+  `current` — the bar animates both ways. Celebrations fire only on forward
+  moves, so an honest backward report never triggers a false celebration.
+- **Timers encourage, never punish.** The countdown renders to the RIGHT of
+  the bar and flips to a gentle "Finish up!" at 0:00 — it never blocks,
+  ends, or fails the activity. Time-based game logic is yours to run inside
+  the canvas; the host countdown is presentation.
+- **`hide()` / `show()`** — hide the bar on cutscenes, free-play sections,
+  or results pages; the declared spec survives and `show()` restores it.
+- **Completion fills the bar.** On `sprout.complete(...)` the host animates
+  the bar to full and celebrates, regardless of the last reported value.
+- **`clear()`** drops the position report (bar returns to at-rest); it does
+  NOT hide the bar — use `hide()` for that.
+- Rapid repeated calls are safe: the host coalesces them (latest value wins).
+
+```js
+const TOTAL = questions.length;
+sprout.progress.setup({ total: TOTAL }); // declare the bar up front
+
+function showQuestion(index) {
+  sprout.progress.set({ current: index, total: TOTAL }); // works going back too
+  render(questions[index]);
+}
+
+function showResults() {
+  sprout.progress.hide(); // results page owns the screen
+}
+
+function finish() {
+  sprout.complete({ score: correct, total: TOTAL }); // host animates the bar to full
+}
+```
+
+Multi-page example — a warm-up phase, then a timed round:
+
+```js
+sprout.progress.setup({ total: warmup.length }); // phase 1: steps
+// … warm-up questions, sprout.progress.set(...) per question …
+
+sprout.progress.setup({
+  // phase 2: re-declare
+  total: round.length,
+  timer: { targetSeconds: 120 }, // fresh countdown
+});
+```
+
 ## Completion — call exactly one, exactly once
 
 Every canvas MUST end with a single terminal call. The canonical call is
@@ -1202,7 +1292,7 @@ window.SproutBridge.postMessage(
 You don't need this. The `sprout.*` methods are terser, typed, and the SDK
 guards double-fire for you. Use `SproutBridge.postMessage` directly only if
 you're authoring against the wire protocol — for example, writing a new host
-adapter.
+adapter (see `host.ts` in `@sprout/canvas/web`).
 
 ---
 
