@@ -1,0 +1,7 @@
+{
+  "name": "sprout-skills",
+  "description": "Sprout Brain skills for planning Sprout family activities, canvases, and partner integrations. Bundles the knowledge/, design/, and examples/ docs the skills load, so they work offline.",
+  "author": {
+    "name": "Sprout Good Habits"
+  }
+}

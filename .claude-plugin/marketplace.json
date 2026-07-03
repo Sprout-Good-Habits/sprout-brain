@@ -1,0 +1,16 @@
+{
+  "name": "sprout-brain",
+  "owner": {
+    "name": "Sprout Good Habits"
+  },
+  "metadata": {
+    "description": "Sprout Brain — skills for planning Sprout family activities, canvases, and partner integrations"
+  },
+  "plugins": [
+    {
+      "name": "sprout-skills",
+      "source": "./",
+      "description": "Sprout Brain skills (sprout-solutions-architect, canvas-planner) plus the knowledge docs they load"
+    }
+  ]
+}

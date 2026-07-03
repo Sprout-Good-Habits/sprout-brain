@@ -15,6 +15,7 @@ Each domain gets its own folder so new docs slot in without reshuffling:
 sprout-brain/
 ├── README.md     # this file — human-facing orientation
 ├── llms.md       # agent index — every doc as a URL + one-liner
+├── .claude-plugin/   # Claude Code plugin-marketplace manifests
 ├── canvas/
 │   └── sdk.md    # the window.sprout.* contract for Sprout-served canvases
 ├── design/       # the kid design language for canvases
@@ -46,64 +47,83 @@ Future siblings: `mcp/`, `voice/`, `skill-authoring/` — same shape.
 
 ## Install Sprout Brain skills
 
-Sprout Brain skills can be installed into Codex, Claude Code, or both.
+This repo is public — no GitHub account, no clone needed. The only real
+prerequisite is the agent app itself. Pick the path for your tool:
 
-Prerequisites:
+### Any agent, one command (recommended)
 
-- Git
-- Python 3
-- Codex and/or Claude Code installed locally
-- Access to this repo
-
-Clone the repo:
+Works for Claude Code, Codex, Cursor, Gemini CLI, Windsurf, Copilot, and
+~50 other tools. Needs Node.js (and git) installed:
 
 ```bash
-git clone https://github.com/Sprout-Good-Habits/sprout-brain.git
-cd sprout-brain
+npx skills add Sprout-Good-Habits/sprout-brain
 ```
 
-Preview what will be installed:
+The CLI detects which agents you have and installs into each one's skill
+directory. Update later with `npx skills update`.
+
+### Claude Code (no terminal)
+
+Type inside Claude Code:
+
+```text
+/plugin marketplace add Sprout-Good-Habits/sprout-brain
+/plugin install sprout-skills@sprout-brain
+```
+
+This installs the skills together with the knowledge docs they load, so they
+work fully offline. Update later with `/plugin marketplace update sprout-brain`.
+
+### Hermes
+
+Hermes installs single skills straight from any public GitHub repo
+([docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)):
+
+```bash
+hermes skills install Sprout-Good-Habits/sprout-brain/skills/sprout-solutions-architect
+hermes skills install Sprout-Good-Habits/sprout-brain/skills/canvas-planner
+```
+
+### OpenClaw
+
+OpenClaw's `git:` installer expects `SKILL.md` at the repo root, which doesn't
+match this repo's layout — use the fallback prompt below instead (skills go in
+`<workspace>/skills/`, or `~/.openclaw/skills/` for all agents).
+
+### Fallback: any agent, zero prerequisites (Windows-friendly)
+
+If a command above complains about git, Node, or anything else, paste this
+into your agent instead — it needs nothing but the agent:
+
+```text
+Download https://github.com/Sprout-Good-Habits/sprout-brain/archive/refs/heads/main.zip,
+extract it, and copy each folder under skills/ that contains a SKILL.md into
+your own user-level skills directory (Claude Code: ~/.claude/skills/,
+Codex and agentskills-standard tools: ~/.agents/skills/, Cursor: ~/.cursor/skills/,
+Hermes: ~/.hermes/skills/, OpenClaw: ~/.openclaw/skills/; on Windows the same
+paths under %USERPROFILE%). Tell me what you installed.
+```
+
+### From a clone (contributors)
+
+If you already work in this repo, the original installer still works and needs
+Python 3:
 
 ```bash
 python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target all --dry-run
-```
-
-Install for both Codex and Claude Code:
-
-```bash
 python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target all
 ```
 
-Install for only one tool:
+It copies skill folders into `~/.claude/skills/` and `~/.codex/skills/`,
+backing up anything it replaces.
 
-```bash
-python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target codex
-```
+### After installing
 
-```bash
-python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target claude
-```
-
-The installer copies Sprout Brain skill folders into the standard local skill
-directories for Codex and Claude Code. Existing Sprout skill folders are backed
-up before replacement.
-
-After installing, start a new Codex or Claude Code session so skill metadata is
-reloaded. Then try:
+Start a new session in your agent so skill metadata reloads, then try:
 
 ```text
-Use $sprout-solutions-architect to help me plan a Sprout activity.
+Use sprout-solutions-architect to help me plan a Sprout activity.
 ```
-
-To update later:
-
-```bash
-cd sprout-brain
-git pull
-python skills/install-sprout-partner-skills/scripts/install_sprout_partner_skills.py --target all
-```
-
-Start a new Codex or Claude Code session after updating.
 
 ## How agents consume it
 

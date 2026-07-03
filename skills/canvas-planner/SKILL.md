@@ -67,6 +67,11 @@ and completion carry over unchanged.
 Do not pour the whole design system into context — the skeleton already
 embodies most of it.
 
+Doc paths above are relative to the `sprout-brain` repo root. If they are
+unavailable because the skill was installed standalone, use
+`references/sprout-brain-docs.md` for raw GitHub fallback URLs and fetch
+docs on demand.
+
 ## What this skill does
 
 1. **Clarify intent** — activity type, subject, age tier (or read via `whoami`
