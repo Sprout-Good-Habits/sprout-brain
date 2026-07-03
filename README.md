@@ -72,7 +72,9 @@ Type inside Claude Code:
 ```
 
 This installs the skills together with the knowledge docs they load, so they
-work fully offline. Update later with `/plugin marketplace update sprout-brain`.
+work fully offline. Update later with `/plugin marketplace update sprout-brain`
+— or enable auto-update for the `sprout-brain` marketplace in the `/plugin`
+menu once, and updates install themselves whenever Claude Code starts.
 
 ### Hermes
 
