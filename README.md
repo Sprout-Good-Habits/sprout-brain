@@ -50,6 +50,25 @@ Future siblings: `mcp/`, `voice/`, `skill-authoring/` — same shape.
 This repo is public — no GitHub account, no clone needed. The only real
 prerequisite is the agent app itself. Pick the path for your tool:
 
+#### What the prerequisites mean
+
+Each path below names the tools it uses. In plain words, so you can tell
+whether you already have them:
+
+- **git** — the standard tool for downloading code from sites like GitHub.
+  Every install command uses it under the hood (only the paste-in fallback
+  below doesn't). Check with `git --version`; on a Mac the first use offers a
+  one-click install.
+- **Node.js (`npx`)** — a runtime that the cross-agent `skills` installer runs
+  on. Only the one-command path needs it. If you use Codex you already have it
+  (Codex itself installs through it). Check with `npx --version`.
+- **Python 3** — a runtime used only by the contributors' clone path. Check
+  with `python3 --version`.
+
+None of these change your system: installing skills just downloads this public
+repo and copies folders into your agent's skills directory. No accounts, no
+background processes.
+
 ### Any agent, one command (recommended)
 
 Works for Claude Code, Codex, Cursor, Gemini CLI, Windsurf, Copilot, and
