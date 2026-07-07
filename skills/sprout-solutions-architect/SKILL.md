@@ -81,6 +81,7 @@ remote `llms.md` first when possible, then load leaf docs on demand.
    - parent program planner
    - adopt or remix
    - external evidence program
+   - recurring home-agent loop (see Loops)
    - publisher or partner integration
 
 2. Ask only for missing choices that affect the plan:
@@ -116,6 +117,96 @@ remote `llms.md` first when possible, then load leaf docs on demand.
    - Never say "created", "live", "assigned", or "scheduled" unless the
      corresponding write tool succeeded.
 
+## Loops (recurring home-agent orchestration)
+
+A **loop** is a `category: "home_agent"` skill of `mode: loop` plus **bound
+inputs**, run recurringly by an external BYOA runner (the parent's Claude
+Code / Codex / Cursor / custom agent) on the agent's own machine. Sprout is
+the ledger, the review gate, and the kid surface — it never runs the loop.
+Identity key is (family, skill, canonical inputs hash), so **per-kid loops are
+the same skill adopted with different inputs** ("Khan Quest — Ben" and
+"— Gabe" are one skill, two loops). This is the productized form of the
+home-agent maintenance loop in
+`../../knowledge/capabilities/home-agent-boundary.md`.
+
+This is the SPR-2040 protocol. Design a loop when it fits, but verify ship
+state against `../../knowledge/capabilities/current-platform.md` before
+telling a partner the `loop.*` verbs are live, and never report a loop as
+running until its write verbs actually succeed.
+
+### When to recommend a loop vs a heartbeat vs a one-off task
+
+- **Loop** — a recurring **freshness / maintenance** need (review progress,
+  regenerate drills, bridge external evidence) AND a BYOA runner is present to
+  do the off-server work. The agent owns cadence and intelligence; the work
+  needs local capability (a logged-in browser, heavy models, files) Sprout
+  cannot host.
+- **Heartbeat** — Sprout runs the recurrence **server-side** for a kid:
+  scheduled delivery or a parent-facing result post, ≤4/day, **no local
+  dependencies and no `canvas.update`** (the scheduled executor has no canvas
+  tools). See `../../knowledge/capabilities/heartbeat.md`.
+- **One-off task** — a single kid activity with no recurrence.
+
+Rule of thumb: recurring **delivery** → heartbeat / recurring task
+(Sprout-side); recurring **maintenance that regenerates content or bridges
+external state** → loop (home-agent-side).
+
+### The lifecycle you may plan
+
+1. **Author the skill** — `skill.write` a `mode: loop` `home_agent` skill with
+   a `goal` (parent-set, supports `{{input.kid}}`), `inputVariables`, and the
+   **rhythm as prose in the body + goal** ("every evening", "after Jay's
+   lesson") — there is no structured cadence column.
+2. **Adopt** — the runner calls `skill.invoke(skillId, input)`; the first
+   invoke mints the loop record + `loopId`, idempotent per (family, skill,
+   inputs hash). Render-only, no kid effect.
+3. **Register the runner** — `runner.register(handle, kind, …)` returns a
+   `runnerId`, idempotent per (grant, handle). **Reuse-first, server-first:**
+   the adopt response's `runners[]` is authoritative — an online runner means
+   its cron is definitionally firing; reuse it instead of standing up another.
+4. **Bind** — `loop.bind(loopId, runnerId)` sets the intended manager before
+   any wake races for it (bind where the loop's local dependencies live).
+5. **Operate (per run)** — the runner wakes and follows the guided chain:
+   `loop.listDue(runnerId)` → `loop.claim(loopId, runnerId)` (TTL lease) →
+   `skill.invoke(loopId)` (renders with the loop's own inputs + goal) → do the
+   work, landing **kid-visible writes through the existing gated verbs**
+   (`task.create` / `canvas.update` / `gems.adjust`) → `loop.submitResult`
+   (pure ledger close: status + stableHash + changeLog + declared `nextDueAt`).
+
+Inputs are **immutable** — they are part of the identity key, so changing who a
+loop is for = adopt a NEW loop, never an edit.
+
+### What you must NEVER invent for a loop
+
+- **Server-side scheduling.** Sprout schedules nothing; the agent's cron is the
+  only clock, `listDue` is a pure query. Never design "Sprout will run this
+  every night."
+- **A parent-app agent maintaining a loop.** The in-app agent has no OAuth MCP
+  surface (401 at `/mcp`), no durable runtime, and would move cost back onto
+  Sprout. Only an external BYOA runner maintains a loop.
+- **Un-gated kid writes.** Every kid-visible change still passes the normal
+  publish / review gate. A loop proposes; Sprout decides what a child sees.
+- **LLM-composed server responses.** All server strings (instructions, labels,
+  refusals) are deterministic templates with slots. Don't promise "Sprout will
+  summarize/decide."
+- **Real-time connectivity / presence pings.** Liveness is a `lastActiveAt`
+  timestamp with a derived `staleAfter`, not a live socket.
+- **Parent thread replies steering a running loop.** Deferred
+  (designed-not-dead). Do not promise in-app replies reach the runner yet.
+- **Cadence below the server floor.** `nextDueAt` is agent-declared but clamped
+  to `cadenceFloor`; don't design sub-floor loops.
+
+### Where the parent steers (Option A)
+
+The parent app is **read + bounded controls only** (status, pause, run-now). A
+parent does not program a loop from the app — **steering happens through the
+home agent** over MCP: "too hard" → the agent edits the goal / body and the
+next render picks it up; "also for Ben" → a new loop (inputs are immutable);
+"why did it stop?" → the agent reads `loop.status` / `loop.history` and
+narrates the typed truth. Full playbooks live in the loop-authoring guide
+(genesis interview + steering map) and the loop-runner guide (durable runner
+construction).
+
 ## Output Style
 
 For parent-facing users, answer in plain language:
@@ -142,4 +233,7 @@ Before finalizing a plan, check:
 - Did I require parent approval before gems when requested?
 - Did I avoid public scraping instructions?
 - Did I distinguish reward earning from reward redemption?
+- For a loop: did I keep scheduling on the agent's cron, never server-side?
+- For a loop: did I treat inputs as immutable (new loop for a new kid, not an
+  edit) and route kid-visible writes through the existing gated verbs?
 - Did I avoid saying setup is complete before writes happened?
