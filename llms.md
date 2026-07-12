@@ -7,10 +7,11 @@ URLs are raw GitHub paths on the `main` branch.
 
 ## Canvas
 
-- [canvas/sdk.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/sdk.md) — The `window.sprout.*` SDK contract for Sprout-served canvases: identity reads, external learning links (`openExternalUrl`), buddy voice (`sprout.tts`), Rive animations (`sprout.rive`), Canvas Memory (`sprout.state` auto-persist + resume), multiplayer sessions (`sprout.session`), signals, completion (`sprout.complete(opts)` canonical), upload flows, concurrency (`expectedVersion`), error handling, and the Released/Roadmap status legend.
+- [canvas/sdk.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/sdk.md) — The `window.sprout.*` SDK contract for Sprout-served canvases: identity reads, external learning links (`openExternalUrl`), buddy voice (`sprout.tts`), Rive animations (`sprout.rive`), Canvas Memory (`sprout.state` auto-persist + resume), the durable cross-day journey (`sprout.journey.get/save` — the state/journey/log three-line model) + the append-only run record (`sprout.log`), multiplayer sessions (`sprout.session`), signals, completion (`sprout.complete(opts)` canonical), upload flows, concurrency (`expectedVersion`), error handling, and the Released/Roadmap status legend.
 - [canvas/worked-patterns.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/worked-patterns.md) — Engine patterns from six shipped production canvases: the LESSON data seam for content-update loops, ASCII-only state keys + canonical `S.done` schema, statically-analyzable `sprout.complete` (literal keys or grading silently downgrades), signal choreography, the four-case resume contract, one-engine multilingual split, interaction-engine recipes (flip-grid, coverage painting, syllable-block frame, HanziWriter tracing via canvas-CDN), and the headless QA harness with its minimum drive set.
 - [canvas/artifact-kit.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/artifact-kit.md) — MOVED: superseded by the `design/` domain (pointer doc).
 - [canvas/design-patterns.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/design-patterns.md) — MOVED: superseded by the `design/` domain (pointer doc).
+- [examples/canvas/journey/README.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/examples/canvas/journey/README.md) — Worked cross-day journey canvas (leveled drill): journey.get default-fill, save-before-complete, log-for-history, typed-refusal degradation.
 
 ## Design (kid design language for canvases)
 
@@ -38,7 +39,7 @@ URLs are raw GitHub paths on the `main` branch.
 
 ## Solutions Architect
 
-- [knowledge/solutions-architect.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/solutions-architect.md) — Run 1 doctrine for mapping parent and partner goals to Sprout-shaped plans.
+- [knowledge/solutions-architect.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/solutions-architect.md) — Run 1 doctrine for mapping parent and partner goals to Sprout-shaped plans. Posture (2026-07): canvases HAVE cross-day memory; earning is quest-shaped; unpaid free-play replays exist; rolling vs sequential tasks by the journey-count test.
 - [knowledge/capabilities/current-platform.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/current-platform.md) — Index of current platform capabilities and limits for lazy loading.
 - [knowledge/primitives/sprout-and-home-agent.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/sprout-and-home-agent.md) — Index of Sprout and home-agent primitives plus canonical sequences.
 - [knowledge/patterns/current-patterns.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/patterns/current-patterns.md) — Index of preferred solution patterns.
@@ -51,7 +52,7 @@ URLs are raw GitHub paths on the `main` branch.
 - [knowledge/capabilities/family-and-child-lookup.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/family-and-child-lookup.md) — Family lookup and child-name resolution rules.
 - [knowledge/capabilities/canvas.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/canvas.md) — Current canvas capability and limits.
 - [knowledge/capabilities/skill.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/skill.md) — Current skill authoring capability and constraints.
-- [knowledge/capabilities/task-and-review.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/task-and-review.md) — Task, submission, review, and reviewed gem-award capability.
+- [knowledge/capabilities/task-and-review.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/task-and-review.md) — Task, submission, review, and reviewed gem-award capability; earning vs free play (quests, frozen rewards, policy.freePlay/extras), durable per-child state via task_describe, task_runs history, content rotation.
 - [knowledge/capabilities/conversation-task.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/conversation-task.md) — Conversation task capability for journaling, explanation, practice, and reflection.
 - [knowledge/capabilities/reward-and-gems.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/reward-and-gems.md) — Reward catalog and gem earning/spending capability.
 - [knowledge/capabilities/heartbeat.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/capabilities/heartbeat.md) — Heartbeat capability and when to prefer recurring tasks.
@@ -66,6 +67,8 @@ URLs are raw GitHub paths on the `main` branch.
 - [knowledge/primitives/canvas.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/canvas.md) — Canvas primitive.
 - [knowledge/primitives/skill.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/skill.md) — Skill primitive.
 - [knowledge/primitives/task.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/task.md) — Task primitive.
+- [knowledge/primitives/task-state.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/task-state.md) — Durable per-(task, child) progress: the journey checkpoint + recent results, read back via task_describe / task_runs.
+- [knowledge/primitives/quest.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/quest.md) — The "this play earns" grant: scheduled auto-mint, on-ask extras within policy.extras, rewards frozen at mint.
 - [knowledge/primitives/submission-review.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/submission-review.md) — Submission and parent review primitive.
 - [knowledge/primitives/reward.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/reward.md) — Reward primitive.
 - [knowledge/primitives/gems.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/knowledge/primitives/gems.md) — Gem primitive.
