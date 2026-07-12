@@ -6,7 +6,7 @@ Engine-structure patterns proven in production (content-update seam, state
 schema, analyzable completion, resume, QA) live in
 `../../canvas/worked-patterns.md`.
 
-Last verified: 2026-07-02
+Last verified: 2026-07-12
 
 ## Tools
 
@@ -42,6 +42,23 @@ Use canvases for:
   executor has no canvas tools (see heartbeat.md).
 - Canvases persist run state across reopens via `sprout.state` (auto-saved); the
   child resumes where they left off. Durable run state only — no PII, JSON-serializable.
+- Canvases HAVE cross-day memory: `sprout.journey.get()` / `.save(next)` is a
+  durable per-(task, child) checkpoint that survives across runs and DAYS —
+  plans MAY assume progression (Tuesday's level 3 resumes Wednesday). The
+  three-line model: `sprout.state` = this sitting, `sprout.journey` = this
+  kid's journey, `sprout.log` = append-only record. `get()` resolves `{}` on a
+  first run AND when the family's durable-state feature is off — always
+  default-fill; `save()` is replace-only (≤ 64 KB), always resolves
+  `{ok, error?}`, and must resolve BEFORE `sprout.complete()`. See
+  `../../canvas/sdk.md` → "Durable journey".
+- The journey lives on the TASK, so content rotation must `task_update` the
+  existing task in place — recreating a task orphans the checkpoint (see
+  `task-and-review.md`). A swapped-in canvas must already be linked to the
+  task's `assignmentSkillId` or the swap is rejected. A bare canvas run with no task attached gets
+  `{ok:false, error:'not-task-linked'}` on save; `sprout.log` still works.
+- The agent reads the checkpoint + recent results back via `task_describe`
+  (`state` / `lastRun` blocks) and full run history via `task_runs_list` /
+  `task_runs_get` — see `task-and-review.md` for the earning/replay model.
 - A canvas can make the Sprout buddy speak aloud via `sprout.tts.speak({ text })`
   — kid's device only; rejects in the web preview (no buddy there).
 - A canvas can render Rive animations via `sprout.rive.resolveAsset` — curated

@@ -8,7 +8,7 @@ a goal to current Sprout primitives, preferred patterns, known limits, and a
 practical setup path. It should be creative inside the available platform,
 but honest about what is not available.
 
-Last verified: 2026-06-02
+Last verified: 2026-07-12
 
 ## What the architect does
 
@@ -47,6 +47,43 @@ changes with the user.
 - Do not recommend unavailable modalities such as camera-verified work unless
   the current platform capability has been verified.
 - Prefer simple current patterns over future-looking custom surfaces.
+
+## Posture update (2026-07): canvases HAVE cross-day memory
+
+The old limit "a canvas has no cross-session memory — plan around it" is
+RETIRED. Plans MAY assume progression:
+
+- **Cross-day memory is real.** A canvas saves a durable per-(task, child)
+  checkpoint via `sprout.journey.save` and resumes it on any later day; the
+  agent reads it back through `task_describe` (`state` / `lastRun`). A
+  Tuesday level-3 finish resumes at level 3 on Wednesday. See
+  `capabilities/canvas.md` and `primitives/task-state.md`.
+- **Replay-without-reward exists.** `policy.freePlay.enabled` lets a kid
+  replay a finished task for zero gems. Earning stays quest-shaped and
+  bounded (`primitives/quest.md`); unpaid replays are by design, not a bug.
+- **Preferred content patterns (replaces re-publish-to-advance):**
+  - *Rolling task* — rotate content in place with `task_update`; the task is
+    the journey's identity and mastery accumulates on it. Default for a
+    continuing journey and for loop-driven refresh.
+  - *Sequential tasks* — one task per genuinely distinct stage for staged
+    curricula whose histories stand alone.
+  Pick by the journey-count test: one continuing journey → rolling; N
+  independent stages → sequential. A loop that creates a NEW TASK per advance
+  orphans the kid's progress — that pattern is retired. (Swapping a fresh
+  canvas onto the SAME task is fine — that is the rolling pattern; the journey
+  is keyed by (task, child), not by canvas. The new canvas must be linked to
+  the task's `assignmentSkillId` first, or `task_update` rejects the swap.)
+- **freePlay fit:** ON for practice/creative repetition; OFF for
+  progression/metered pacing and for conversation tasks unless open-ended
+  repeats are wanted. Cross-day progress does NOT depend on the switch.
+- **Rollout caveat:** the per-child `state` / `lastRun` blocks and quest
+  minting sit behind the `task_quests` family feature (rollout in progress).
+  Design for the model now; check the family's surface before promising it
+  live today.
+- **Discovery caveat:** the MCP server `initialize` instructions do NOT yet
+  carry this model (size-budget-blocked; rewrite pending). Never assume
+  instructions-level awareness — pull `sprout://task/authoring-guide` (earning
+  vs free play, rotation) and `sprout://canvas/sdk` (journey/log) explicitly.
 
 ## Routing
 

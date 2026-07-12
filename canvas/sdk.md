@@ -27,7 +27,8 @@ Every method below is tagged **Released** or **Roadmap**.
 
 Released today: `whoami`, `openExternalUrl`, `sprout.tts.speak` /
 `sprout.tts.stop`, `sprout.rive.resolveAsset`, `signal`, `sprout.progress`
-(`setup` / `show` / `hide` / `set` / `clear`), `score` / `complete` / `timed`, and the legacy
+(`setup` / `show` / `hide` / `set` / `clear`), `sprout.journey` (`get` / `save`),
+`sprout.log`, `score` / `complete` / `timed`, and the legacy
 `SproutBridge`. Everything in the **Roadmap** section below is not callable yet.
 
 ---
@@ -751,6 +752,65 @@ sprout.progress.setup({
   timer: { targetSeconds: 120 }, // fresh countdown
 });
 ```
+
+## Durable journey — `sprout.journey.get` / `.save` (Released)
+
+`sprout.journey` is the kid's **durable journey** for this task — memory that
+survives across sittings and across DAYS (distinct from the ephemeral
+`sprout.progress` bar above). The three-line model, memorize it:
+
+- **`sprout.state`** = THIS SITTING (scratch for the current run; auto-persisted, resumes the same run).
+- **`sprout.journey`** = THIS KID'S JOURNEY (a small, current checkpoint that carries across days).
+- **`sprout.log`** = WHAT HAPPENED, FOR THE RECORD (an append-only trail).
+
+```js
+// Read where this kid is (host-seeded at start). ALWAYS default-fill — get()
+// resolves {} on a first-run AND when the family hasn't enabled durable state;
+// the two are indistinguishable by design.
+const journey = await sprout.journey.get(); // unknown — never assume shape
+const level = journey.level ?? 1; // default-fill every field
+const stars = journey.stars ?? 0;
+
+// … the kid plays, clears level 3 …
+
+// Save the WHOLE checkpoint (replace-only, last-write-wins). Keep it SMALL and
+// CURRENT — where they are, not where they've been. save() ALWAYS resolves,
+// never rejects: branch on the result instead of catching.
+const res = await sprout.journey.save({ level: 4, stars: 12 });
+if (!res.ok) {
+  // res.error is 'too-large' | 'disabled' | 'not-task-linked'. On 'too-large'
+  // the previously-saved journey is untouched. Degrade gracefully — the canvas
+  // still works, just without cross-day memory.
+}
+```
+
+Rules:
+
+- **Replace-only, ≤ 64 KB.** `save(next)` overwrites the whole blob — there is
+  no partial merge. Keep it a small "where are they" object.
+- **History does NOT go here.** A growing list of past attempts belongs in
+  `sprout.log`, not `journey`. `journey` is the current checkpoint only.
+- **Save BEFORE you complete.** `await sprout.journey.save(next)` and let it
+  resolve, THEN call `sprout.complete(...)`, so the journey is durable before the
+  run freezes.
+- **Default-fill on read.** `get()` is `{}` on first-run/flag-off/free-play —
+  never assume a field exists.
+
+## Journey log — `sprout.log` (Released)
+
+`sprout.log(entry)` appends one entry to this run's record — "what happened, for
+the record". Fire-and-forget like `signal`: no return value, never throws. The
+host BATCHES entries (~1 flush/second) and caps size/count, so a chatty canvas
+is bounded automatically.
+
+```js
+sprout.log('level 3 cleared');
+sprout.log({ event: 'hint_used', card: 7, msLeft: 4200 });
+```
+
+Use `log` for the trajectory (events, attempts, choices) that a parent or the
+system might review later. Use `journey` for the current checkpoint the canvas
+resumes from. Do not put the running history into `journey`.
 
 ## Completion — call exactly one, exactly once
 

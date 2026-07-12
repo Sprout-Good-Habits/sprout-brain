@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <body>
+    <div class="app">
+      <!-- Screen 1: drill -->
+      <div class="screen" id="screen-game">
+        <div class="top-toolbar">
+          <div style="flex:1">
+            <div class="top-toolbar-title" id="level-title">Math Drill</div>
+          </div>
+        </div>
+        <div class="card">
+          <h2 id="question">…</h2>
+          <div class="stack stack-lg" id="choices"></div>
+        </div>
+      </div>
+
+      <!-- Screen 2: results -->
+      <div class="screen hidden" id="screen-results">
+        <div class="empty-state">
+          <div class="empty-state-emoji" style="font-size:64px;line-height:1;height:64px">🏆</div>
+          <div class="empty-state-title" id="result-title">Great work!</div>
+          <div class="empty-state-desc" id="result-desc"></div>
+        </div>
+        <button class="btn btn-primary btn-lg" id="submit" type="button">Done</button>
+      </div>
+    </div>
+
+    <script>
+      const ROUNDS = 5;
+      let level = 1;
+      let correct = 0;
+      let attempted = 0;
+      let submitted = false;
+
+      // Within-sitting resume (sprout.state): merge-defaults, never replace.
+      const S = sprout.state;
+      S.round ??= 0;
+      S.correct ??= 0;
+
+      async function boot() {
+        // Cross-day checkpoint (sprout.journey): ALWAYS default-fill — get()
+        // resolves {} on a first run AND when durable state is off for the
+        // family; the two are indistinguishable by design.
+        const j = await sprout.journey.get();
+        level = j.level ?? 1;
+        correct = S.correct;
+
+        sprout.progress.setup({ total: ROUNDS });
+        document.getElementById('level-title').textContent = 'Math Drill — Level ' + level;
+        nextQuestion();
+      }
+
+      function nextQuestion() {
+        if (S.round >= ROUNDS) return finish();
+        sprout.progress.set({ current: S.round, total: ROUNDS });
+        const a = Math.ceil(Math.random() * (5 + level * 2));
+        const b = Math.ceil(Math.random() * (5 + level * 2));
+        const answer = a + b;
+        document.getElementById('question').textContent = a + ' + ' + b + ' = ?';
+        const options = [answer, answer + 1, answer - 1].sort(() => Math.random() - 0.5);
+        const box = document.getElementById('choices');
+        box.innerHTML = '';
+        options.forEach((opt) => {
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-secondary btn-lg';
+          btn.type = 'button';
+          btn.textContent = String(opt);
+          btn.onclick = () => pick(opt === answer);
+          box.appendChild(btn);
+        });
+      }
+
+      function pick(right) {
+        attempted++;
+        S.round++;
+        if (right) {
+          correct++;
+          S.correct = correct;
+          sprout.signal('attempt-successful');
+        } else {
+          sprout.signal('attempt-failed');
+        }
+        // History goes to the LOG, never into the journey checkpoint.
+        sprout.log({ event: 'answer', round: S.round, level, right });
+        nextQuestion();
+      }
+
+      let finishing = false;
+      async function finish() {
+        if (finishing) return; // guard re-entry while the save is in flight
+        finishing = true;
+        // Level up on a strong round; the new level is the whole journey.
+        const leveledUp = correct >= ROUNDS - 1;
+        const nextLevel = leveledUp ? level + 1 : level;
+
+        // Save the WHOLE checkpoint (replace-only) and AWAIT it BEFORE
+        // completing, so the journey is durable before the run freezes.
+        const res = await sprout.journey.save({ level: nextLevel });
+        if (!res.ok) {
+          // 'too-large' | 'disabled' | 'not-task-linked' — degrade gracefully:
+          // the drill still completes, just without cross-day carry.
+          sprout.log({ event: 'journey_save_refused', reason: res.error });
+        }
+
+        document.getElementById('result-title').textContent = leveledUp
+          ? 'Level up! Welcome to level ' + nextLevel
+          : 'Great practice!';
+        document.getElementById('result-desc').textContent =
+          'You got ' + correct + ' of ' + ROUNDS + ' right.';
+        sprout.progress.hide();
+        showScreen('results');
+        submit(); // auto-fire; the visible Done button double-fires safely
+      }
+
+      function submit() {
+        if (submitted) return;
+        submitted = true;
+        sprout.complete({ score: correct, total: ROUNDS });
+      }
+
+      function showScreen(id) {
+        document.querySelectorAll('.screen').forEach((s) => s.classList.add('hidden'));
+        document.getElementById('screen-' + id).classList.remove('hidden');
+      }
+
+      document.getElementById('submit').onclick = submit;
+      boot();
+    </script>
+  </body>
+</html>

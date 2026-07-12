@@ -3,13 +3,15 @@
 Index for Sprout-side and home-agent-side primitives. Load this file first,
 then open only the primitive or sequence docs relevant to the request.
 
-Last verified: 2026-06-02
+Last verified: 2026-07-12
 
 ## Primitive docs
 
 - `canvas.md` - Kid-facing HTML artifact.
 - `skill.md` - Authored wrapper around canvas-backed or chat-output behavior.
 - `task.md` - Delivery mechanism for child activities.
+- `task-state.md` - Durable per-(task, child) progress: journey checkpoint + recent results.
+- `quest.md` - The "this play earns" grant: scheduled auto-mint + on-ask extras; frozen rewards.
 - `submission-review.md` - Parent approval and reviewed gem award path.
 - `reward.md` - Catalog item a child can spend gems on.
 - `gems.md` - Incentive currency and award boundaries.

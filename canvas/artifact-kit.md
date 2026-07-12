@@ -18,3 +18,8 @@ Go to:
 Completion is `sprout.complete(opts)` per [`sdk.md`](sdk.md);
 `SproutBridge.postMessage` is the legacy wire protocol — do not author
 against it.
+
+Memory follows the three-line model per [`sdk.md`](sdk.md): `sprout.state`
+(this sitting) · `sprout.journey` (this kid's durable, cross-day checkpoint)
+· `sprout.log` (append-only record). The upstream artifact-kit source teaches
+the same split — see the sdk.md sections "Durable journey" and "Journey log".
