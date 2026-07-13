@@ -4,13 +4,13 @@
     "name": "Sprout Good Habits"
   },
   "metadata": {
-    "description": "Sprout Brain — skills for planning Sprout family activities, canvases, and partner integrations"
+    "description": "Sprout — author kid canvases and manage your family from your AI agent via the official Sprout MCP, plus the planning skills and knowledge docs they load"
   },
   "plugins": [
     {
-      "name": "sprout-skills",
+      "name": "sprout",
       "source": "./",
-      "description": "Sprout Brain skills (sprout-solutions-architect, canvas-planner) plus the knowledge docs they load"
+      "description": "Connect your AI agent to the Sprout MCP (author canvases; manage tasks, gems, rewards, screen-time; submit to the Sprout marketplace) with bundled Sprout planning skills"
     }
   ]
 }
