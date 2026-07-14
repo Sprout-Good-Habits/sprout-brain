@@ -87,7 +87,7 @@ Type inside Claude Code:
 
 ```text
 /plugin marketplace add Sprout-Good-Habits/sprout-brain
-/plugin install sprout-skills@sprout-brain
+/plugin install sprout@sprout-brain
 ```
 
 This installs the skills together with the knowledge docs they load, so they
@@ -145,6 +145,39 @@ Start a new session in your agent so skill metadata reloads, then try:
 ```text
 Use sprout-solutions-architect to help me plan a Sprout activity.
 ```
+
+## Use it as an agent plugin (MCP + skills)
+
+Beyond docs and skills, this repo is an installable **plugin**: it connects
+your AI agent to the official **Sprout MCP**
+(`https://api.sproutgoodhabits.com/mcp`) — author kid canvases, manage tasks,
+gems, rewards, and screen-time, submit to the Sprout marketplace — and bundles
+the Sprout planning skills alongside.
+
+Install per agent:
+
+- **Claude Code:**
+
+  ```text
+  /plugin marketplace add Sprout-Good-Habits/sprout-brain
+  /plugin install sprout@sprout-brain
+  ```
+
+- **Cursor:** one-click via the Cursor Marketplace listing (coming), or clone
+  the repo as a local plugin.
+
+- **Codex:** manual MCP — add to `~/.codex/config.toml`:
+
+  ```toml
+  [mcp_servers.sprout]
+  url = "https://api.sproutgoodhabits.com/mcp"
+  ```
+
+On first use the MCP triggers OAuth: sign in as a Sprout parent — a
+fully-onboarded parent account (family + kids + consent) is required.
+
+The `install-sprout-partner-skills` python route above still works for a
+skills-only local install.
 
 ## How agents consume it
 

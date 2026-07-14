@@ -1,0 +1,12 @@
+{
+  "name": "sprout",
+  "version": "0.1.0",
+  "description": "Author Sprout canvases + manage your family from Cursor, via the official Sprout MCP.",
+  "author": { "name": "Sprout Good Habits" },
+  "homepage": "https://sproutgoodhabits.com",
+  "repository": "github:Sprout-Good-Habits/sprout-brain",
+  "license": "MIT",
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/",
+  "rules": "./rules/"
+}

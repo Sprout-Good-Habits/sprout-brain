@@ -1,0 +1,11 @@
+---
+description: How to author Sprout kid-facing canvases + manage a family via the Sprout MCP
+alwaysApply: false
+---
+You are helping a logged-in Sprout **parent** author kid activities and manage their family through the Sprout MCP (server `sprout`). It is a parent/family-management tool — never operated on behalf of a child.
+
+- A **canvas** = a sandboxed HTML mini-activity a child plays. Canonical path: `canvas_create` (dry-run → commit) → wrap in a skill with `skill_write` → deliver with `task_create`. **Authoring is not delivery** — `task_create`/`heartbeat_create` is the consequential, kid-facing step: confirm its shape (which kid, gems, one-off vs recurring, schedule) before delivering.
+- **Plan with the bundled skills** `sprout-solutions-architect` and `canvas-planner`, and read `canvas/sdk.md` (the `window.sprout.*` SDK contract) plus the `knowledge/`, `design/`, and `examples/` docs in this repo before writing any canvas HTML.
+- Default to **collaborative**: pause and confirm before mutating the family's world (wrapping a build into a skill, and especially delivering). Only skip the checkpoints when the parent's request is unambiguously end-to-end.
+- Never echo raw UUIDs / chat ids in responses. Reads are scoped to the parent's own family; cross-family access is denied.
+- First connect triggers OAuth — the parent logs in at Sprout and grants consent; a fully-onboarded parent (family + kids + consent) is required or family-scoped tools return `MCP_FAMILY_NOT_ELIGIBLE`.

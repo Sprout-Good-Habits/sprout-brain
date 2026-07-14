@@ -1,7 +1,8 @@
 {
-  "name": "sprout-skills",
-  "description": "Sprout Brain skills for planning Sprout family activities, canvases, and partner integrations. Bundles the knowledge/, design/, and examples/ docs the skills load, so they work offline.",
+  "name": "sprout",
+  "description": "Connect your AI agent to the Sprout MCP — author kid canvases and manage your family (tasks, gems, rewards, screen-time), plus bundled Sprout planning skills and the knowledge/design/examples docs they load.",
   "author": {
     "name": "Sprout Good Habits"
-  }
+  },
+  "mcpServers": "./claude.mcp.json"
 }

@@ -1,0 +1,7 @@
+{
+  "mcp_servers": {
+    "sprout": {
+      "url": "https://api.sproutgoodhabits.com/mcp"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "sprout",
+  "version": "0.1.0",
+  "description": "Author Sprout canvases + manage your family from Codex, via the official Sprout MCP.",
+  "skills": "./skills/",
+  "mcpServers": "./codex.mcp.json"
+}
