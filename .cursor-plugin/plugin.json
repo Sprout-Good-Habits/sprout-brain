@@ -6,6 +6,7 @@
   "homepage": "https://sproutgoodhabits.com",
   "repository": "github:Sprout-Good-Habits/sprout-brain",
   "license": "MIT",
+  "logo": "assets/logo.png",
   "mcpServers": "./.mcp.json",
   "skills": "./skills/",
   "rules": "./rules/"

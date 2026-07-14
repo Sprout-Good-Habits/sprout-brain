@@ -176,6 +176,13 @@ Install per agent:
 On first use the MCP triggers OAuth: sign in as a Sprout parent — a
 fully-onboarded parent account (family + kids + consent) is required.
 
+### Data handling & privacy
+
+- **Parent-only.** Every tool acts on behalf of a signed-in Sprout **parent**. Child principals never authenticate to or reach the MCP server.
+- Access is scoped to your own family via OAuth — no cross-family access.
+- Sprout does **not** sell or transfer your data, and does **not** use it to train models.
+- Privacy: https://app.sproutgoodhabits.com/legal/privacy · Terms: https://app.sproutgoodhabits.com/legal/terms · Support: https://app.sproutgoodhabits.com/support
+
 The `install-sprout-partner-skills` python route above still works for a
 skills-only local install.
 
