@@ -17,7 +17,7 @@ canvas (sandbox artifact)      the game definition — HTML the kids play
 
 Three facts drive everything else:
 
-1. **Agents stage; parents start.** You cannot create a general board. You make a canvas *startable* (`board_add_canvas`) and the parent physically starts it on their device, from the "Start something new" picker — which also shows them a privacy notice and asks who's in. The one exception: `board_create` exists but is hard-tenanted to the canonical Family Heart publication (health flows own their consent); for anything else it refuses with steering.
+1. **Agents stage; parents start.** You cannot create a general board. You make a canvas *startable* (`board_add_canvas`) and the parent physically starts it on their device: **Shelf tab → "Start something new"** — your canvas appears there under **"Made for our family"**. The picker also shows them a privacy notice and asks who's in. The one exception: `board_create` exists but is hard-tenanted to the canonical Family Heart publication (health flows own their consent); for anything else it refuses with steering — and note its `canvasProjectId` input is an internal noun you cannot obtain from any tool; never go hunting for a "project ID".
 2. **Members = visibility.** Everything played onto a board is visible to *all* of its members — including members added later. That is the consent basis the parent acknowledged at start. Never treat a board as a private channel to one child.
 3. **The wall is the truth; the room is a projection.** Plays land as `board_state` rows; the app projects each revealed row into the board's chat room as a card and notifies members like a chat message. You never write chat messages — you post to the wall and the projection does the rest.
 
@@ -25,8 +25,8 @@ Three facts drive everything else:
 
 ```
 canvas_create (build the game)            you author the HTML
-   → board_add_canvas {canvasId, vocab}   you stage it: now it appears in the family's picker
-   → [parent starts it on-device]         notice → who's in → board exists
+   → board_add_canvas {canvasId, vocab}   you stage it for the family your token is bound to
+   → [parent: Shelf tab → Start something new → "Made for our family"]  notice → who's in → board exists
    → board_list / board_get               you discover boards you can play into
    → board_post {boardId, ...}            you make plays / GM moves / highlights
    → board_data {boardId}                 you read the room: board + manifest + wall
@@ -85,6 +85,10 @@ A board canvas is a normal Sprout canvas (see [canvas/sdk.md](https://raw.github
 - Declare your verb honestly in the manifest — the play button says what a play *is* ("심기!", "두기!", "Bake!").
 - One play per turn where the game demands it: gate your own submit button off the log's last actor. The platform will not do it for you.
 
+## Troubleshooting: "the parent can't see it in the picker"
+
+`board_add_canvas` stages the canvas **in the family your token is bound to, on the environment your server connection points at**. If the parent's picker shows no "Made for our family" section, the staging landed in a different family or environment than the device — verify with `board_list`/`canvas_list` on YOUR connection that you and the parent are looking at the same family, before re-staging or debugging the canvas itself. The picker also only offers canvases whose newest project is ACTIVE.
+
 ## Worked example: staging a two-player game
 
 ```
@@ -92,8 +96,9 @@ A board canvas is a normal Sprout canvas (see [canvas/sdk.md](https://raw.github
 2. board_add_canvas     { canvasId: "ba03…",
                           vocab: { playLabel: "두기!", playEmoji: "♟️",
                                    boardEmoji: "♟️", players: { min: 2, max: 2 } } }
-3. → tell the parent: "Chess is ready — start it from Start something new
-     and pick the two players."
+3. → tell the parent: "Chess is ready — open the Shelf tab, tap
+     Start something new, and pick it under Made for our family
+     (choose the two players)."
 4. [parent starts it]
 5. board_list           → find the new board
 6. board_data           → read the wall; game-master or coach as asked
