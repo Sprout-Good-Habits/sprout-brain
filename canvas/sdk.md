@@ -13,12 +13,19 @@ WKWebView (iOS) with no network access except through this SDK.
 
 ## SDK status legend
 
-Every method below is tagged **Released** or **Roadmap**.
+Every method below is tagged **Released**, **Feature-gated**, or **Roadmap**.
 
 - **Released** — wired on the kid's device (iOS). A few Released methods are
   intentionally inert in the local **web preview** (it has no buddy overlay and
   no server allowlist) and reject there — each method's section flags this. Safe
   to build on, but always handle the documented preview-degraded branch.
+- **Feature-gated** — implemented on the supported host, but unavailable by
+  default. Runtime photo capture/upload requires the server-controlled
+  `canvas_uploads` decision: either `FEATURE_CANVAS_UPLOADS` is enabled for the
+  environment or the family has an active approved pilot grant. The host denies
+  access before camera presentation and before runtime-media state or bytes are
+  created/read when that decision is ineffective. SDK presence does not mean a
+  family is enabled.
 - **Roadmap** — present in the SDK type surface so you can see its shape, but
   **not implemented on any host**. Calling one today rejects immediately with
   `Error("unsupported in this host yet: <method>")`. **Do not build a canvas
@@ -103,10 +110,10 @@ document.getElementById('title').textContent = `${me.childName}'s Math Game`;
 Use `ageTier` to gate complexity — e.g., tier1 gets simpler multiplication
 tables (×2-5), tier3 gets the full ×2-12.
 
-`whoami` is the only request/response read wired today. Asset reads
-(`getAsset` / `uploadAsset`) and the cross-run reads (`history` / `recall`) are
-Roadmap (next section) and reject as unsupported. Durable run state is a
-separate, Released surface — see "Canvas Memory — `sprout.state`".
+Runtime asset reads use the feature-gated `sprout.asset.resolve(assetId)`
+surface documented below. Cross-run reads (`history` / `recall`) remain Roadmap
+and reject as unsupported. Durable run state is a separate, Released surface —
+see "Canvas Memory — `sprout.state`".
 
 ---
 
@@ -461,6 +468,112 @@ window.__sproutDeliver = function (msg) {
 
 ---
 
+## Runtime photo capture and assets — Feature-gated
+
+The iOS kid host implements the byte-free runtime-media contract below, but it
+is **default off**. It works only when the server derives effective
+`canvas_uploads` access from the trusted `FEATURE_CANVAS_UPLOADS` environment
+lever or an active approved family pilot grant. Canvas JavaScript cannot enable
+or choose that decision.
+
+When access is ineffective, `camera.capture` is denied before native camera UI
+appears, and `asset.upload` / `asset.resolve` are denied before any new asset
+row, object transfer, finalize, or byte read. The normal web preview is also an
+honest unsupported host. Always provide a non-camera fallback.
+
+**Server boundary:** the host-only capability broker
+(`/v1/canvas/capabilities/:capabilityKey`), authenticated asset content/finalize
+routes (`/v1/canvas/assets/:assetId/*`), and proof-bearing Canvas completion
+(`/v1/canvas-runs/:runId/complete`) all recheck effective `canvas_uploads`
+authority. They are not public Canvas fetch targets, and proof completion cannot
+be used to bypass a disabled capture/upload rollout. The flag is default off.
+
+### `sprout.camera.capture(): Promise<CameraCaptureResult>` — Feature-gated
+
+Capture is local-only. A successful result contains an expiring opaque
+`captureId` and a host-safe preview; it does not upload and does not return an
+`assetId`.
+
+```ts
+type CameraCaptureResult =
+  | {
+      status: 'captured';
+      capture: {
+        captureId: string;
+        previewSrc: string;
+        mimeType: 'image/jpeg' | 'image/png';
+        width: number;
+        height: number;
+        sizeBytes: number;
+        expiresAt: string;
+      };
+    }
+  | { status: 'cancelled' }
+  | {
+      status: 'blocked';
+      reason:
+        | 'permission_denied'
+        | 'consent_required'
+        | 'feature_disabled'
+        | 'not_task_linked'
+        | 'host_unsupported';
+    };
+```
+
+### `sprout.asset.upload({source:{type:'capture',captureId}})` — Feature-gated
+
+This explicit call is the only Phase-1 transition that persists a capture. The
+native host owns the file URI and transfer credentials; Canvas sends only the
+opaque `captureId`. Only `status: 'ready'` returns a durable `assetId`.
+
+```ts
+type ResolvedAsset = {
+  assetId: string;
+  kind: 'image';
+  mimeType: 'image/jpeg' | 'image/png';
+  sizeBytes: number;
+  width: number;
+  height: number;
+  createdAt: string;
+  src: string;
+  srcExpiresAt?: string;
+};
+
+type AssetUploadResult =
+  | { status: 'ready'; asset: ResolvedAsset }
+  | {
+      status: 'blocked';
+      reason:
+        | 'capture_expired'
+        | 'feature_disabled'
+        | 'consent_required'
+        | 'not_task_linked'
+        | 'too_large'
+        | 'unsupported_type'
+        | 'safety_blocked';
+    };
+```
+
+### `sprout.asset.resolve(assetId: string)` — Feature-gated
+
+Re-authorizes a durable asset for rendering. Persist only `assetId`; the
+returned `src` is host-safe and may expire.
+
+```ts
+type AssetResolveResult =
+  | { status: 'ready'; asset: ResolvedAsset }
+  | {
+      status: 'unavailable';
+      reason: 'not_available' | 'feature_disabled' | 'host_unsupported';
+    };
+```
+
+Expected cancellation, policy blocks, and unavailable assets resolve through
+these unions. Malformed requests, infrastructure failures, and timeouts reject
+with the SDK's ordinary `Error`; keep the fallback in both branches.
+
+---
+
 ## Roadmap — not yet available (do not build on these)
 
 The methods in this section exist in the SDK type surface so you can see what
@@ -468,27 +581,6 @@ is coming, but **no host implements them yet**. Calling any of them today
 rejects immediately with `Error("unsupported in this host yet: <method>")` on
 iOS and web alike — it is a plain `Error`, not a typed `SproutCanvasError`.
 Do not ship a canvas that depends on these; their shapes may still change.
-
-### `sprout.getAsset(assetId: string): Promise<Asset>` — Roadmap
-
-_Not implemented._ Planned: fetch a previously-saved asset, returning metadata
-plus a Sprout-served URL usable directly in `<img src>` / `<audio src>`.
-
-```ts
-type Asset = {
-  assetId: string;
-  url: string; // pre-signed / inline; usable directly in src=
-  kind: 'image' | 'audio' | 'drawing' | 'text';
-  sizeBytes: number;
-  createdAt: string; // ISO 8601
-};
-```
-
-### `sprout.uploadAsset(content: string, kind: Asset['kind']): Promise<Asset>` — Roadmap
-
-_Not implemented._ Planned: upload a kid-created asset and return the same
-`Asset` shape with the new id and URL (strings only at first — SVG markup,
-data URLs, plain text; 256 KB cap).
 
 ### `sprout.history(limit?: number): Promise<{ items: Attempt[] }>` — Roadmap
 
@@ -1183,8 +1275,8 @@ flow where the agent is reading-then-modifying.
    the canvas are (a) the auto-injected SDK, (b) inline `<script>` / `<style>`
    blocks, (c) same-origin manifest assets, and (d) external subresources
    loaded via the canvas-CDN proxy in rule 2 (`<script src>`, `<link href>`,
-   `<img src>`, `<audio src>`, etc.). Asset I/O via `sprout.getAsset` /
-   `sprout.uploadAsset` is Roadmap (see above) — not callable yet.
+   `<img src>`, `<audio src>`, etc.). Feature-gated runtime media uses only the
+   host-mediated `sprout.camera` / `sprout.asset` contract described above.
 
 2. **External `<script src>` / `<link href>` / `<img src>` ONLY via the
    canvas-CDN proxy. Use RELATIVE URLs.**
@@ -1326,8 +1418,8 @@ try {
 }
 ```
 
-(When asset I/O ships — see Roadmap — the same try / fallback /
-`sprout.complete()` pattern applies to `getAsset` / `uploadAsset`.)
+(For feature-gated runtime media, use the same try/fallback pattern around
+`sprout.camera.capture()` / `sprout.asset.upload()`.)
 
 Timeouts: SDK methods reject after 10 seconds if the host doesn't respond.
 This is a defensive timeout — under normal conditions reads return in <500ms.
