@@ -80,10 +80,15 @@ The manifest is how the *game* declares its nature; the board seals a copy at st
 
 A board canvas is a normal Sprout canvas (see [canvas/sdk.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/sdk.md) and the design/ archetypes ([llms.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/llms.md) indexes them)) that reads the board's wall to render shared state and lands plays as wall rows. Design rules that make board canvases feel right:
 
-- Render the *shared* state from the wall (`move` log filtered to the current round), not from local memory — several devices play the same board.
-- Poll modestly (the app's room push keeps members fresh; your canvas refresh is for the open player) and skip refreshing mid-interaction (a selected piece, a pending stroke).
+**The multiplayer contract — the two rules a board canvas must never break:**
+
+1. **Every finished play crosses the SDK boundary.** A play the kid completes must reach the platform through one of the two sanctioned calls — a `sprout.session.act(verb, payload)` intent (session-wired hosts) or the `sprout.complete(...)` crossing (run settlement writes the wall contribution, round-stamped). A play kept only in your own JavaScript state **does not exist** to the other kid's device — this is the single most common multiplayer bug.
+2. **Every render comes from platform state, never your memory.** Wire `sprout.session.onUpdate(...)` and re-render from snapshots, or (poll-mode hosts) re-read the history log on a modest cadence (≤30s foregrounded; skip refreshing mid-interaction — a selected piece, a pending stroke). A canvas that draws only what it saw locally shows each kid a different game.
+
+Style rules that make board canvases feel right:
 - Declare your verb honestly in the manifest — the play button says what a play *is* ("심기!", "두기!", "Bake!").
-- One play per turn where the game demands it: gate your own submit button off the log's last actor. The platform will not do it for you.
+- One play per turn where the game demands it: respect `session.turn` (or gate your submit off the log's last actor). The platform will not do it for you.
+- Conformance checks assert exactly the two rules above at the SDK boundary (calls + render source), never your HTML or game logic — test what your canvas *does*, and it passes.
 
 ## Troubleshooting: "the parent can't see it in the picker"
 

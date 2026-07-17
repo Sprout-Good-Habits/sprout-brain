@@ -650,6 +650,14 @@ write shared state directly.
 This is **not** a request/response Roadmap method. `sprout.session.act()`
 always posts a fire-and-forget `session.act` envelope, but it is only useful on
 hosts that wire the optional session seam and deliver `session.update` snapshots.
+
+**Board-play contract (family boards):** a finished play must cross the SDK
+boundary — `sprout.session.act(verb, payload)` on session-wired hosts, or the
+`sprout.complete(...)` crossing (settlement writes the round-stamped wall
+contribution). Renders must come from `session.update` snapshots or history
+re-reads, never from canvas-local memory alone: local-only state is invisible
+to the other kid's device. Conformance tooling asserts these crossings at the
+SDK boundary (see the boards guide's multiplayer contract).
 Ordinary solo canvas hosts can safely ignore the envelope.
 
 ### `sprout.session`
