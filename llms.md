@@ -14,6 +14,10 @@ URLs are raw GitHub paths on the `main` branch.
 - [canvas/design-patterns.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/canvas/design-patterns.md) — MOVED: superseded by the `design/` domain (pointer doc).
 - [examples/canvas/journey/README.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/examples/canvas/journey/README.md) — Worked cross-day journey canvas (leveled drill): journey.get default-fill, save-before-complete, log-for-history, typed-refusal degradation.
 
+## MCP
+
+- [mcp/changelog.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/mcp/changelog.md) — Canonical agent-contract changelog: the append-only, machine-readable log of agent-visible Sprout MCP contract changes (new/changed tool, scope, resource, or behavior), keyed to the contract lockfile version. sprout-app vendors this and serves it newest-first as the `sprout://changelog` resource; read it when a tool refuses unexpectedly or `mcp_whoami` reports a new contractVersion.
+
 ## Design (kid design language for canvases)
 
 - [design/README.md](https://raw.githubusercontent.com/Sprout-Good-Habits/sprout-brain/main/design/README.md) — Orientation for the design domain: the generated-and-linted freshness contract with sprout-app's injected stylesheet, and reading order.
