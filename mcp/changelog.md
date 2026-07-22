@@ -61,7 +61,7 @@ Conventions:
     dailyTarget; the refusal code DAILY_TARGET_GUARDRAIL carries
     {dailyTarget, gems, maxPaidDailyTarget, dailyPayout} for self-correction.
 
-- version: 2026.07.22-3
+- version: 2026.07.22-4
   surface: resource
   change: new resource sprout://changelog serves the agent-contract changelog (newest first)
   action: none
