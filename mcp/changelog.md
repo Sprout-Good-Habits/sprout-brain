@@ -15,17 +15,85 @@ examples live with the sprout-app design notes (agent-contract project).
 
 Conventions:
 
-- Entries are stored **oldest first** (append new entries at the bottom); the
-  `sprout://changelog` resource reverses this to render newest first.
+- Entries are stored **newest first** (prepend a new entry at the top of the
+  list); the `sprout://changelog` resource serves them in that order.
 - Same-day **backfill** entries (changes that predate the lockfile mechanism)
-  carry a `-B<n>` suffix so they never collide with a real lockfile head. They
-  document already-shipped changes and were never coupled to a lockfile hash.
+  carry a `-B<n>` suffix so they never collide with a real lockfile head.
 - `action` routes the whoami nudge (PR-3): `none` (visible only), `reauth`
   (reconnect for a new scope), `refetch_tools`, `update_calls`.
 
 ## Entries
 
-```yaml
+- version: 2026.07.24-1
+  surface: resource
+  change: new resource sprout://changelog serves the agent-contract changelog (newest first)
+  action: none
+  agent_guidance: >-
+    Read sprout://changelog when a tool refuses unexpectedly, a capability is
+    missing, or your model of a tool may be stale — each entry says what changed
+    in the contract and what to do differently.
+
+- version: 2026.07.23-2
+  surface: tool
+  change: >-
+    loop.claim now returns queued parent feedback as read-only compatibility
+    guidance to runners whose cached contract predates feedback_resolution_v1;
+    loop.listDue now tells runners missing current semantic protocols to
+    truthfully re-register before claiming.
+  action: none
+  agent_guidance: >-
+    Review pendingFeedback from every granted claim before running the focal
+    loop. Legacy contracts may apply that guidance without submitting structured
+    feedback resolutions; do not claim a resolution state you cannot report.
+    Follow loop.listDue's re-registration instruction when your live contracts
+    can honor the named protocols.
+  details_diff: |
+    ~ tool changed: loop.claim (description, output behavior)
+    ~ tool changed: loop.listDue (description, instructions behavior)
+
+- version: 2026.07.22-4
+  surface: tool
+  change: >-
+    marketplace.submit drops the retired setupInstructions field from
+    submission metadata; setup guidance now travels via the setup recipe.
+  action: none
+  agent_guidance: >-
+    Stop sending setupInstructions in marketplace.submit metadata — it is no
+    longer accepted; convey setup guidance through the setup recipe instead.
+  details_diff: |
+    ~ tool changed: marketplace.submit (inputSchema)
+
+- version: 2026.07.22-3
+  surface: tool
+  change: >-
+    runner.register clarifies semantic protocol obligations and guides legacy
+    runners through same-wake protocol self-upgrade.
+  action: none
+  agent_guidance: >-
+    Advertise only protocols you can honor; when registration reports missing
+    protocols, assess support and re-register during the same wake without
+    asking the user to configure anything.
+  details_diff: |
+    ~ tool changed: runner.register (description, inputSchema)
+
+- version: 2026.07.22-B2
+  surface: tool
+  change: task.create and task.update refuse dailyTarget > 10 when gems > 0
+  action: update_calls
+  agent_guidance: >-
+    For unlimited replays set policy.freePlay {enabled: true} instead of a large
+    dailyTarget; the refusal code DAILY_TARGET_GUARDRAIL carries
+    {dailyTarget, gems, maxPaidDailyTarget, dailyPayout} for self-correction.
+
+- version: 2026.07.22-B1
+  surface: behavior
+  feature_key: task_quests
+  change: scheduled quests mint for today's window only; past windows never mint
+  action: none
+  agent_guidance: >-
+    Do not expect quest rows for days the child never opened the app; misses are
+    derived from schedule vs receipts, not from quest rows.
+
 - version: 2026.07.15-1
   surface: scope
   feature_key: task_quests
@@ -42,31 +110,3 @@ Conventions:
     quest.create grants a child a bonus (extra) quest on a task within the
     parent's extras policy; refusals are typed with the remaining budget for
     counter-offers.
-
-- version: 2026.07.22-B1
-  surface: behavior
-  feature_key: task_quests
-  change: scheduled quests mint for today's window only; past windows never mint
-  action: none
-  agent_guidance: >-
-    Do not expect quest rows for days the child never opened the app; misses are
-    derived from schedule vs receipts, not from quest rows.
-
-- version: 2026.07.22-B2
-  surface: tool
-  change: task.create and task.update refuse dailyTarget > 10 when gems > 0
-  action: update_calls
-  agent_guidance: >-
-    For unlimited replays set policy.freePlay {enabled: true} instead of a large
-    dailyTarget; the refusal code DAILY_TARGET_GUARDRAIL carries
-    {dailyTarget, gems, maxPaidDailyTarget, dailyPayout} for self-correction.
-
-- version: 2026.07.22-4
-  surface: resource
-  change: new resource sprout://changelog serves the agent-contract changelog (newest first)
-  action: none
-  agent_guidance: >-
-    Read sprout://changelog when a tool refuses unexpectedly, a capability is
-    missing, or your model of a tool may be stale — each entry says what changed
-    in the contract and what to do differently.
-```
