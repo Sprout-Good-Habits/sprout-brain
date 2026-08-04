@@ -21,22 +21,29 @@ Every method below is tagged **Released**, **Feature-gated**, or **Roadmap**.
   to build on, but always handle the documented preview-degraded branch.
 - **Feature-gated** — implemented on the supported host, but unavailable by
   default. Runtime photo capture/upload requires the server-controlled
-  `canvas_uploads` decision: either `FEATURE_CANVAS_UPLOADS` is enabled for the
-  environment or the family has an active approved pilot grant. The host denies
-  access before camera presentation and before runtime-media state or bytes are
-  created/read when that decision is ineffective. SDK presence does not mean a
-  family is enabled.
+  `canvas_uploads` launch decision: either `FEATURE_CANVAS_UPLOADS` is enabled
+  for the environment or the family has an active approved pilot grant. When
+  access is ineffective, the host blocks before camera presentation and before
+  creating, transferring, finalizing, or reading runtime media. The SDK methods
+  remain typed and discoverable so authors can implement a safe fallback.
+  Task-driven `sprout.activity` video verification is separately gated by
+  `activity_video_verification_v1` plus the assignment, Canvas declaration,
+  cohort, iOS host-version, device, and permission checks described below.
 - **Roadmap** — present in the SDK type surface so you can see its shape, but
   **not implemented on any host**. Calling one today rejects immediately with
   `Error("unsupported in this host yet: <method>")`. **Do not build a canvas
   that depends on a Roadmap method** — its shape may still change before it
   ships.
 
-Released today: `whoami`, `openExternalUrl`, `sprout.tts.speak` /
+Released today: `whoami`, `sprout.participants` / `sprout.onParticipantsChanged`,
+`openExternalUrl`, `sprout.tts.speak` /
 `sprout.tts.stop`, `sprout.rive.resolveAsset`, `signal`, `sprout.progress`
 (`setup` / `show` / `hide` / `set` / `clear`), `sprout.journey` (`get` / `save`),
 `sprout.log`, `score` / `complete` / `timed`, and the legacy
-`SproutBridge`. Everything in the **Roadmap** section below is not callable yet.
+`SproutBridge`. The Health Canvas proof methods (`sprout.health`,
+`sprout.camera`, and `sprout.ai`) are also released, but only in the
+flag-enabled parent board host described below. Everything in the **Roadmap**
+section below is not callable yet.
 
 ---
 
@@ -94,11 +101,33 @@ Identify the active child. Use on load to personalize the canvas.
 
 ```ts
 type Identity = {
-  childId: string; // stable id (opaque — for analytics, not display)
+  childId: string; // driving principal's id (opaque — for analytics, not display)
   childName: string; // first name — display this to the kid
   ageTier: 'tier1' | 'tier2' | 'tier3'; // 4-6 / 7-9 / 10+
+  principalType?: 'child' | 'parent'; // who is driving — see note below
+  sample?: true; // present only for synthetic preview identities (see below)
+  avatar?: ParticipantAvatar | null; // the viewer's OWN Village avatar, or null
 };
 ```
+
+`principalType` and `avatar` are **additive** — canvases reading only `childId`
+/ `childName` / `ageTier` are unaffected.
+
+`childId` is the **driving principal's** id, and on the parent board host that
+is the **parent's** id, not a child row — it is `'child'` on the kid hosts and
+the web preview, `'parent'` on the parent board host. Do NOT assume a child row
+keyed only by `childId`; branch on `principalType` when the distinction matters
+(e.g. a canvas that keys per-child state must not mint a row for a parent).
+
+`avatar` is the viewer's own cosmetic Village character (same shape as a
+`participants()` entry, see below), or `null` when the viewer hasn't customized.
+Pair it with `sprout.rive.resolveAsset` to render the viewer as their own
+character.
+
+In the web preview, an anonymous or kid-less viewer resolves to a synthetic
+sample child marked `sample: true` (a signed-in parent still gets their real
+kid, unmarked). Render it exactly like a real identity — the marker only lets
+chrome flag it as a preview stand-in; it is never set on the kid's device.
 
 Example:
 
@@ -110,10 +139,118 @@ document.getElementById('title').textContent = `${me.childName}'s Math Game`;
 Use `ageTier` to gate complexity — e.g., tier1 gets simpler multiplication
 tables (×2-5), tier3 gets the full ×2-12.
 
-Runtime asset reads use the feature-gated `sprout.asset.resolve(assetId)`
-surface documented below. Cross-run reads (`history` / `recall`) remain Roadmap
-and reject as unsupported. Durable run state is a separate, Released surface —
-see "Canvas Memory — `sprout.state`".
+Runtime-media requests (`camera.capture`, `asset.upload`, `asset.resolve`) are
+**Feature-gated** on the iOS kid host under `canvas_uploads`. The
+`FEATURE_CANVAS_UPLOADS` env lever defaults OFF (unset and every non-truthy
+value are OFF); effective per-family access is that lever OR an active family
+pilot grant, so a pilot grant can make access effectively ON even when the
+lever is off. See "Release-gated and roadmap methods" below for how the
+decision is composed. The parent-board-only Health proof
+reads are documented below. Cross-run reads
+(`history` / `recall`) are Roadmap and reject as unsupported. Durable run state is a
+separate, Released surface — see "Canvas Memory — `sprout.state`".
+
+---
+
+## Participants — the canvas roster (Released)
+
+### `sprout.participants(): Promise<Participant[]>` — Released
+
+Read the canvas's roster so a multiplayer / board canvas renders the family's
+**real** Village characters live — instead of hardcoding Rive inputs into HTML
+that rot the moment a kid recustomizes.
+
+```ts
+type ParticipantAvatar = {
+  kind: 'village-character';
+  // Exactly the 14 Village axes, clamped. Keyed by CONFIG key
+  // (skin, eyeShade, hair, hairShade, beard, beardShade, clothing,
+  // clothingColour, glasses, glassesShade, earring, faceDetail, headwear,
+  // headwearShade). The UI-only `background` axis is NEVER included.
+  inputs: Record<string, number>;
+};
+
+type Participant = {
+  id: string; // principal id (opaque, stable per roster)
+  principalType: 'child' | 'parent';
+  name: string; // display first name (never empty)
+  isSelf: boolean; // true for exactly the viewer
+  avatar: ParticipantAvatar | null; // null ⇒ uncustomized (fall back to your own chip)
+};
+```
+
+**Scope equals visibility** — each host answers exactly the roster its user
+already sees, and nothing more:
+
+| Host                            | `participants()` answers                                        |
+| ------------------------------- | --------------------------------------------------------------- |
+| Board-play host (kid or parent) | the board's **active members**                                  |
+| Solo skill run                  | `[self]`                                                        |
+| Web preview                     | a synthetic **sample cast** (never real names, even logged out) |
+| Parent chat modal / old builds  | rejects `unsupported in this host yet`                          |
+
+Ages, birthdays, emails, and the `background` axis **never** cross the bridge —
+`participants()` is presentation data only.
+
+**Rendering a character.** The `inputs` are keyed by config key; the Rive state
+machine expects its own input **names**. Map them when you drive Rive — and mind
+the one gotcha: **`beardShade` maps to the Rive input `'beardshadeID '` with a
+TRAILING SPACE.** Set it verbatim or the input silently no-ops.
+
+```js
+// axis config key → Rive state-machine input name
+const RIVE_INPUT = {
+  skin: 'skinID',
+  eyeShade: 'eyeshadeID',
+  hair: 'hairID',
+  hairShade: 'hairshadeID',
+  beard: 'beardID',
+  beardShade: 'beardshadeID ' /* ← trailing space is REAL */,
+  clothing: 'clothingID',
+  clothingColour: 'clothingcolourID',
+  glasses: 'glassID',
+  glassesShade: 'glassshadeID',
+  earring: 'earringID',
+  faceDetail: 'facedetailID',
+  headwear: 'headwearID',
+  headwearShade: 'headwearshadeID',
+};
+
+const [me, ...others] = await sprout.participants();
+const roster = await sprout.participants();
+const asset = await sprout.rive.resolveAsset('village-character');
+// new rive.Rive({ src: asset.url, ... }) → then, per member:
+for (const p of roster) {
+  if (!p.avatar) continue; // uncustomized — render your own fallback chip
+  for (const [key, value] of Object.entries(p.avatar.inputs)) {
+    stateMachineInput(RIVE_INPUT[key]).value = value; // note the beardShade space
+  }
+}
+```
+
+### `sprout.onParticipantsChanged(cb: () => void): () => void` — Released
+
+Subscribe to roster changes. When a member joins/leaves or recustomizes their
+avatar mid-run, the host fires a **bare** signal (no data rides it). It means
+**"identity presentation data changed"** — re-call **both** `participants()`
+**and** `whoami()`: the change may be to another member OR to the viewer's own
+avatar (`whoami().avatar`), and the signal does not say which. Re-pulling both
+heals every case, no remount. Returns an unsubscribe function. Solo + preview
+hosts never fire it (static scope).
+
+Because the signal is bare and coalesced, also re-pull once when you first
+subscribe — a change can land in the gap before your subscription attaches.
+
+```js
+async function refreshIdentity() {
+  const [me, roster] = await Promise.all([sprout.whoami(), sprout.participants()]);
+  rerenderSelf(me.avatar); // the viewer's own avatar may have changed
+  rerenderCharacters(roster); // …or another member's
+}
+const stop = sprout.onParticipantsChanged(refreshIdentity);
+refreshIdentity(); // re-pull once on subscribe (covers a pre-subscribe change)
+// later: stop();
+```
 
 ---
 
@@ -468,119 +605,526 @@ window.__sproutDeliver = function (msg) {
 
 ---
 
-## Runtime photo capture and assets — Feature-gated
+## Health canvas proof capabilities — Released, parent-board host gated
 
-The iOS kid host implements the byte-free runtime-media contract below, but it
-is **default off**. It works only when the server derives effective
-`canvas_uploads` access from the trusted `FEATURE_CANVAS_UPLOADS` environment
-lever or an active approved family pilot grant. Canvas JavaScript cannot enable
-or choose that decision.
+These methods are part of the released SDK contract, but they are available
+only inside a **flag-enabled parent board host**. They are intentionally
+unsupported in the child app, the web preview, older app builds, and any host
+without the Health Canvas feature enabled. Always wrap them in `try/catch` and
+keep a visible non-proof fallback. Do not use host availability as evidence
+that Health permission was granted.
+
+The proof boundary is deliberately narrow:
+
+- Health uses one fixed host-owned read set: active energy, steps, and workouts
+  from the start of the local day. Canvas code cannot select metrics, request
+  heart rate, or probe arbitrary date windows. It receives the host-derived
+  categorical result AND, on a `met` / `not_met` reading, the two aggregate
+  totals behind it — today's step count and active-energy `metrics` for the
+  authorizing parent (SPR-3082). These are the parent's OWN consented activity
+  numbers, shown on their proof card. Heart rate, individual workout rows, other
+  units, and timestamps still never cross.
+- Camera capture is foreground-only and camera-only. The canvas receives an
+  opaque, mount-scoped `captureToken` plus safe dimensions and MIME type—never
+  bytes, base64, a URL/URI, EXIF, an asset id, or photo-library access.
+- AI accepts only the activity-proof operation. The trusted parent host binds
+  the confirmed subject to the token; canvas code cannot supply attestation,
+  a model, schema, system prompt, arbitrary prompt, or image content.
+- Health proof results never belong in `sprout.complete(...)`. The separate
+  runtime-media completion proof accepts one durable uploaded asset id; Health
+  capture tokens are transient and must never enter that field. Save only the
+  board-safe categorical state defined by the Health activity.
+
+```ts
+type CanvasRequestOptions = { signal?: AbortSignal };
+
+sprout.health.requestAuthorization(
+  options?: CanvasRequestOptions
+): Promise<{
+  status: 'available' | 'incomplete' | 'unavailable';
+  presented: boolean;
+  reason?: 'unsupported' | 'cancelled' | 'native_failure';
+}>;
+
+sprout.health.query(
+  input: { since: 'startOfToday' },
+  options?: CanvasRequestOptions
+): Promise<{
+  status: 'met' | 'not_met' | 'empty' | 'unavailable' | 'error';
+  basis?: 'active_energy' | 'steps' | 'workout';
+  headline?: string;
+  // The parent's own consented totals, present only on a met / not_met reading.
+  metrics?: { steps?: number; activeEnergy?: number };
+}>;
+
+sprout.camera.capture(
+  input: { direction?: 'front' | 'back'; quality?: number },
+  options?: CanvasRequestOptions
+): Promise<{
+  captureToken: string;
+  width: number;
+  height: number;
+  mimeType: 'image/jpeg' | 'image/png';
+}>;
+
+sprout.ai.ask(
+  input: {
+    kind: 'activity-proof';
+    captureToken: string;
+    activityLabel: string;
+  },
+  options?: CanvasRequestOptions
+): Promise<{
+  verified: boolean;
+  confidence: number;
+  label: string;
+  unavailable?: 'cancelled' | 'provider' | 'invalid_capture' | 'rate_limited';
+}>;
+```
+
+`quality`, when present, must be from `0.1` through `1`. `activityLabel` is
+visible wording and is limited to 120 characters. A camera token is transient,
+consume-once, and valid only for the current mounted host; never put it in
+`sprout.state`, journey data, logs, or completion.
+
+The required `input` object distinguishes this parent-board proof call from the
+feature-gated, zero-argument runtime-media capture documented below. Pass `{}`
+when accepting the default camera direction and quality.
+
+Authorization and camera sheets have 120-second deadlines, a Health query has
+15 seconds, and an AI verdict has 30 seconds. Passing an `AbortSignal`, a
+timeout, or leaving the canvas cancels the host operation and ignores a late
+reply. An already-aborted signal rejects locally. Cancellation is terminal;
+start a new request rather than reusing a token.
+
+```js
+async function collectActivityProof() {
+  const controller = new AbortController();
+  try {
+    const authorization = await sprout.health.requestAuthorization({
+      signal: controller.signal,
+    });
+    if (authorization.status !== 'available') return showManualFallback();
+
+    const health = await sprout.health.query(
+      { since: 'startOfToday' },
+      { signal: controller.signal }
+    );
+    if (health.status === 'met') return showHealthSuccess(health.headline);
+
+    const capture = await sprout.camera.capture(
+      { direction: 'back', quality: 0.8 },
+      { signal: controller.signal }
+    );
+    const verdict = await sprout.ai.ask(
+      {
+        kind: 'activity-proof',
+        captureToken: capture.captureToken,
+        activityLabel: "Today's movement",
+      },
+      { signal: controller.signal }
+    );
+    return verdict.verified ? showCameraSuccess(verdict.label) : showManualFallback();
+  } catch {
+    // Expected in child/web/old/flag-off hosts and on permission/provider failure.
+    return showManualFallback();
+  }
+}
+```
+
+---
+
+## Activity verification — task-driven native proof (Feature-gated)
+
+`activity_verification_plan_v1` is the trusted, task-owned description of a
+bounded activity check. The task author supplies the kid-facing instruction and
+one closed activity intent; the server maps that intent to the profile, Count
+Me meaning, audio rule, and capture limits, then freezes the complete plan for
+the attempt. A Canvas may render the trusted instruction, but it cannot replace
+the plan, choose a model/profile, loosen capture limits, or derive progress
+from camera frames.
+
+The V1 compatibility types are exported from every supported package surface.
+Runtime constants and validators are host-tooling exports from `@sprout/canvas`,
+`@sprout/canvas/ios`, `@sprout/canvas/web`, and
+`@sprout/canvas/activity-verification`. The Canvas-author
+`@sprout/canvas/sdk` entry exposes these as **types only** because its injected
+runtime module exports only `sprout`; author code must not make named runtime
+imports that old iframe/WKWebView hosts cannot provide.
+
+- `activity_verification_v1` — the Canvas can orchestrate the generic
+  activity-verification journey.
+- `camera_video_v1` — the Canvas journey requires bounded foreground camera
+  video.
+- `microphone_v1` — the plan may require microphone audio.
+
+These are declaration and preflight IDs, not caller-selectable policy. The
+authoring analyzer derives them from executable `sprout.activity.*` calls, and
+the host validates the frozen task plan, declarations, rollout gate, device
+support, and permission state before presenting capture UI.
+
+`sprout.activity.status()` reads the safe state for the current authenticated
+Canvas run. `sprout.activity.verify()` presents or rejoins the native proof
+journey and resolves at a terminal or unavailable state.
+`sprout.activity.references()` reads the frozen plan's ordered `golden` example
+images (documented below). All three accept only the standard optional request
+controls (`signal` and `timeoutMs`); none of them accepts an app name,
+instruction, target, profile, provider, asset id, or media input.
+
+```js
+const current = await sprout.activity.status();
+renderTrustedPlan(current.plan);
+
+startButton.addEventListener('click', async () => {
+  const finished = await sprout.activity.verify();
+  if (finished.state === 'terminal') renderSafeResult(finished.result);
+});
+```
+
+The verify deadline is 30 minutes so recording, local safety checks, upload,
+and assessment can finish without a bridge timeout. Status reads use a
+15-second deadline. A Canvas reload may call `status()` to recover by run;
+attempt IDs, task/child identity, evidence, provider details, and confidence
+never cross the bridge. See
+[`docs/examples/activity-verification.html`](./examples/activity-verification.html)
+for an activity-neutral Canvas.
+
+Example server-compiled plan:
+
+```ts
+const plan: ActivityVerificationPlanV1 = {
+  version: 'activity_verification_plan_v1',
+  instruction: 'Play a piano passage 3 times',
+  captureMode: 'camera',
+  profile: 'piano_passage_repetition_v1',
+  checks: [
+    {
+      mode: 'count_me',
+      criteria: 'one complete start-to-finish piano performance',
+      target: 3,
+      unit: 'repetitions',
+    },
+  ],
+  audio: 'required',
+  capturePolicy: {
+    maxDurationSeconds: 90,
+    maxSizeBytes: 10 * 1024 * 1024,
+  },
+};
+```
+
+The server compiles and freezes the closed verification profile. V1 supports
+`piano_passage_repetition_v1` (audio required) and
+`hand_clap_repetition_v1` (audio prohibited), with targets through 10 and a
+10 MiB capture cap. Instruction, criteria, and unit are display context; they
+do not define model policy or leave Sprout for verification.
+
+Task authoring stores a closed `activity_verification_intent_v1` with
+`activity`, `instruction`, and `target`; directly supplied plan/profile/audio
+fields are rejected at the execution boundary.
+
+V1 accepts exactly one Count Me check because its result has one
+`observed`/`target`/`unit` projection. Multi-check plans require a future
+per-check result version.
+
+The Canvas-facing `activity_verification_result_v1` is metadata only:
+`status`, `outcome`, `observed`, `target`, `unit`, a closed `message` code, and
+optional coarse retry metadata. The trusted host localizes that code using the
+numeric fields; arbitrary display copy never crosses into generic Canvas code.
+Retry guidance is outcome-bound: verified results cannot request a retry;
+insufficient evidence uses `evidence_insufficient`; ambiguous completed
+assessments use `try_again`; blocked capture may use `permission_denied` or
+`try_again`; and unavailable verification uses `verification_unavailable`.
+Strict validation rejects contradictory retry guidance and extra fields,
+including media paths/URLs, bytes, provider payloads, transcripts, model
+confidence, child identity, and moderation details. Exported limits and
+capability lists are frozen, and validators enforce private immutable limits
+so consumer mutation cannot widen policy.
+
+Result validation requires the trusted frozen plan. It rejects target or unit
+values that differ from that plan, then reconstructs both fields from the
+validated plan rather than passing result-producer strings through to Canvas.
+
+V1 also bounds persisted metadata: instruction and criteria are each at most
+1,000 JavaScript string characters, unit is at most 64, and Count Me target is
+from 1 through 100. Plan and result validators enforce the same target/unit
+limits so later attempt snapshots do not freeze unbounded JSON or incompatible
+numeric values.
+
+| Frozen task plan                                       | Required Canvas declarations                                          | Minimum host support                |
+| ------------------------------------------------------ | --------------------------------------------------------------------- | ----------------------------------- |
+| Camera Count Me, `audio: 'prohibited'`                 | `activity_verification_v1`, `camera_video_v1`                         | activity verification V1 + camera   |
+| Camera Count Me, `audio: 'required'`                   | `activity_verification_v1`, `camera_video_v1`, `microphone_v1`        | activity verification V1 + mic      |
+| Photo `golden_compare`, `audio: 'prohibited'` (always) | `activity_verification_v1`, `camera_video_v1`                         | activity verification V1 + camera   |
+| Unknown plan/check/capture/audio contract version      | Unsupported; do not infer support from prose or another capability ID | matching future version is required |
+
+Existing Canvases declare none of these IDs and remain unchanged. Declaration
+alone never enables recording; unsupported combinations must fail preflight
+without entering capture.
+
+### `golden_compare` — photo proof profile
+
+`golden_compare_v1` is the photo-proof sibling of Count Me above. It rides the
+SAME two SDK methods — `sprout.activity.status()` / `sprout.activity.verify()`
+— with plan-driven dispatch: the host branches on the frozen `plan.profile` /
+`plan.captureMode`, never on a separate verb. A Canvas author never picks a
+model, a comparison threshold, or an image; the TASK author supplies an
+`instruction`, a model-facing `criteria` string, and 1–6 role-tagged reference
+`assetId`s (at least one `golden`), and the server compiles and freezes those
+into the same `ActivityVerificationPlanV1` shape, with `captureMode: 'photo'`,
+`audio: 'prohibited'`, and a zero-duration capture policy (a still, not a
+clip).
+
+Required Canvas declarations: `activity_verification_v1`, `camera_video_v1` —
+the same two IDs a Count Me Canvas declares, minus `microphone_v1` (a photo
+proof records no audio). The authoring analyzer derives them from the exact
+same executable `sprout.activity.verify()` / `sprout.activity.status()` calls
+described above — there is no separate photo-specific SDK call to author
+against. The analyzer is call-name-only and cannot see `check.mode`, so a real
+golden_compare Canvas's actual declared set still includes `microphone_v1`
+alongside these two in practice — this row states the required minimum, not
+what a golden_compare Canvas ends up declaring today.
+
+The terminal result carries a `golden_compare` check outcome instead of a
+Count Me `observed`/`target` count. `finished.result.outcome` is one of
+`verified` (photo matched the frozen golden reference(s)), `insufficient`
+(a photo was judged but did not match — `retry?.allowed` gates a retake),
+`not_sent` (`status: 'blocked'` — permission denied, or capture never
+completed), or `unavailable` (verification could not run at all):
+
+```js
+const status = await sprout.activity.status();
+renderTrustedPlan(status.plan); // status.plan.instruction — same trusted plan shape as Count Me
+
+verifyButton.addEventListener('click', async () => {
+  const finished = await sprout.activity.verify();
+  if (finished.state !== 'terminal') return; // e.g. 'unavailable' — no plan, no journey
+  const proof = finished.result;
+  switch (proof.outcome) {
+    case 'verified':
+      celebrate();
+      break;
+    case 'insufficient':
+      offerRetake(proof.retry); // proof.retry?.allowed gates a retake button
+      break;
+    case 'not_sent':
+      showBlocked(proof.retry);
+      break;
+    case 'unavailable':
+      showUnavailable();
+      break;
+    default:
+      // needs_review is reserved for Count Me in V1 and never emitted by
+      // golden_compare today, but the shared outcome type isn't narrowed
+      // per check mode — fail visibly instead of silently no-op-ing.
+      showUnavailable();
+      break;
+  }
+});
+```
+
+See
+[`docs/examples/tidy-room-photo-proof.html`](./examples/tidy-room-photo-proof.html)
+for the real, Stage-uploadable worked example this snippet is drawn from — a
+tidy-room activity authored as ordinary Canvas content that calls the one
+shipped verb and branches on the structured terminal result only, with no
+`task-proof` or capability plumbing anywhere in Canvas code.
+
+### `sprout.activity.references(): Promise<ActivityReferencesResult>` — Feature-gated
+
+Reads the active `golden_compare` task's frozen plan's ordered `golden`
+reference images — the parent-authored "here's what done looks like" photos —
+so a Canvas can show the kid an example BEFORE asking them to capture proof.
+Takes no arguments: the Canvas never supplies a task, run, or asset id, and
+never sees a storage path, signing credential, raw asset id, or the
+verifier-only `criteria` string. `negative` references are never returned in
+v1. Requires the same `activity_verification_v1` declaration as
+`sprout.activity.status()` / `sprout.activity.verify()` — there is no separate
+declaration for this read.
+
+```ts
+type ActivityReferencesResult =
+  | { status: 'ready'; references: readonly ActivityReference[] }
+  | {
+      status: 'unavailable';
+      reason: 'not_available' | 'capability_not_declared' | 'host_unsupported';
+    };
+
+interface ActivityReference {
+  checkIndex: number; // position in the plan's `checks` array — preserve this order
+  role: 'golden';
+  src: string; // a render-safe source for a plain <img src> — do not persist
+  mimeType: 'image/jpeg' | 'image/png';
+}
+```
+
+The call resolves within 120 seconds (it carries the image bytes inline, so it
+sits with `asset.upload` rather than with `sprout.activity.status()`'s 15s), and
+accepts the same `signal` / `timeoutMs` request controls as the other two
+`sprout.activity` verbs if you want a tighter budget.
+
+Wrap the call in `try`/`catch`. `ActivityReferencesResult` has no error arm, but
+the promise can still _reject_ — on the bridge deadline, or if the host returns
+a response whose shape doesn't validate. Treat a rejection exactly like an
+`unavailable` status: hide the gallery and carry on.
+
+Minimal "show the example, then verify" sample:
+
+```js
+try {
+  const refs = await sprout.activity.references();
+  if (refs.status === 'ready') {
+    for (const ref of refs.references) {
+      const image = document.createElement('img');
+      image.src = ref.src; // render only — never write this value to sprout.state or any storage
+      image.alt = 'Example of the completed task';
+      examples.appendChild(image);
+    }
+  } else {
+    // 'not_available' | 'capability_not_declared' | 'host_unsupported' — all the
+    // same safe degradation: skip the example gallery, the task instruction
+    // alone still carries the kid through to verify.
+    examples.hidden = true;
+  }
+} catch {
+  // Deadline or invalid response shape — same degradation as 'unavailable'.
+  examples.hidden = true;
+}
+
+verifyButton.addEventListener('click', async () => {
+  const verdict = await sprout.activity.verify();
+  // ...branch on verdict.state exactly as the golden_compare example above.
+});
+```
+
+Multi-check plans (a `golden_compare` task with more than one check — e.g. "Shelf 1"
+and "Shelf 2") carry references for every check in one flat array. Group by
+`checkIndex` to route each example to the right task zone instead of dumping every
+reference into one gallery:
+
+```js
+try {
+  const refs = await sprout.activity.references();
+  if (refs.status === 'ready') {
+    const byCheck = new Map();
+    for (const ref of refs.references) {
+      if (!byCheck.has(ref.checkIndex)) byCheck.set(ref.checkIndex, []);
+      byCheck.get(ref.checkIndex).push(ref);
+    }
+    for (const [checkIndex, checkRefs] of byCheck) {
+      const zone = document.querySelector(`[data-check-zone="${checkIndex}"]`);
+      for (const ref of checkRefs) {
+        const image = document.createElement('img');
+        image.src = ref.src; // render only — never write this value to sprout.state or any storage
+        image.alt = 'Example of the completed task';
+        zone.appendChild(image);
+      }
+    }
+  }
+} catch {
+  // Deadline or invalid response shape — leave the zones without examples.
+}
+```
+
+Never persist a resolved `src` — it is not a stable identifier and reading it
+again next session is what `sprout.activity.references()` itself is for. The
+bundled **Photo Proof** demo (`?demo=photo-proof`) and MCP preview tokens carrying
+the trusted server-derived photo-proof marker return two frozen `golden` entries
+backed by checked-in fake room photos. The server derives that marker from an
+executable `sprout.activity.references()` call before minting the token; the web
+host never classifies Canvas HTML text. No environment setup is required, and
+Canvas code cannot select a different fixture or provide bytes. Paste sources
+and tokens without that explicit metadata receive `{ status: 'unavailable',
+reason: 'capability_not_declared' }`.
+
+### Previewing the photo-proof journey
+
+The bundled Photo Proof demo and trusted MCP photo-proof previews provide a
+deterministic fake camera journey.
+`sprout.activity.status()` starts at a real validator-backed `available` status.
+`sprout.activity.verify()` opens the inline camera over the Canvas, lets the
+author capture/review a checked-in fake room photo, and keeps the child capture
+visible beside both golden references while it explains the result. The tidy path
+returns a validator-backed two-check `verified` result only after **Finish photo
+proof**. The dirty path shows the same child-versus-golden comparison and offers
+**Take another photo** or **Send to parent**. Because the preview is anonymous,
+the latter opens a clearly labeled preview-only explanation instead of claiming
+that it contacted a real parent.
+Closing the camera returns the same `unavailable` shape a production host
+returns for a cancelled capture.
+
+The preview also resolves `camera.capture`, `asset.upload`, and `asset.resolve`
+against the same checked-in fake capture. These paths never open a device
+camera, upload bytes, reach production storage, or read fixture identifiers
+from a Canvas payload. The parent-review preview does not contact a real family,
+upload the capture, or create a production submission.
+
+---
+
+## Release-gated and roadmap methods
+
+The runtime-media methods below have a pinned byte-free contract and an iOS kid
+host implementation, but they are **default-off feature-gated capabilities**.
+They work only when the server derives effective `canvas_uploads` access from
+the trusted `FEATURE_CANVAS_UPLOADS` environment lever or an active approved
+family pilot grant. Canvas input cannot enable or select that decision.
 
 When access is ineffective, `camera.capture` is denied before native camera UI
-appears, and `asset.upload` / `asset.resolve` are denied before any new asset
-row, object transfer, finalize, or byte read. The normal web preview is also an
-honest unsupported host. Always provide a non-camera fallback.
+appears, and `asset.upload` / `asset.resolve` are denied before any new runtime
+asset state, object transfer, finalize, or byte read. Authors may prepare
+against these signatures only when they also provide a non-camera fallback.
+`history` and `recall` remain ordinary roadmap shapes and may still change.
 
 **Server boundary:** the host-only capability broker
 (`/v1/canvas/capabilities/:capabilityKey`), authenticated asset content/finalize
 routes (`/v1/canvas/assets/:assetId/*`), and proof-bearing Canvas completion
 (`/v1/canvas-runs/:runId/complete`) all recheck effective `canvas_uploads`
 authority. They are not public Canvas fetch targets, and proof completion cannot
-be used to bypass a disabled capture/upload rollout. The flag is default off.
+be used to bypass a disabled capture/upload rollout. There is no MCP surface
+that reports this effective authority today (`mcp_health` returns protocol info
+only). The `FEATURE_CANVAS_UPLOADS` env lever defaults OFF, but an active
+family pilot grant can make effective access ON even when the lever is off —
+treat the composed decision (lever OR grant), not the lever alone, as the
+source of truth for any given family.
+
+**Availability:** raw runtime-media calls in the web preview use a checked-in
+fake capture only for a canvas the host has fingerprinted as the bundled Photo
+Proof demo (an executable `sprout.activity.references()` call resolves that
+fixture); every other canvas gets the honest unsupported-host refusal
+(`{status:'blocked'/'unavailable', reason:'host_unsupported'}` or
+`'feature_disabled'`) instead. That fingerprinted demo also receives the fake
+golden references and inline verification journey described above. The
+preview never opens a camera, uploads bytes, or calls an asset route. This
+preview behavior does not change device authority. iOS stays release-gated until
+`canvas-runtime-media-i-proof-host` passes its on-device verification; the
+presence of these SDK members alone does not mean device availability.
 
 ### `sprout.camera.capture(): Promise<CameraCaptureResult>` — Feature-gated
 
-Capture is local-only. A successful result contains an expiring opaque
-`captureId` and a host-safe preview; it does not upload and does not return an
-`assetId`.
+Requests one host-native photo. A successful capture returns an expiring,
+host-local `captureId` plus preview metadata. **Capture does not upload and does
+not return an `assetId`.** Cancel and expected policy/permission denials resolve
+as result-union branches; infrastructure failures reject with the SDK's normal
+base `Error`. The camera interaction may take up to five minutes.
 
-```ts
-type CameraCaptureResult =
-  | {
-      status: 'captured';
-      capture: {
-        captureId: string;
-        previewSrc: string;
-        mimeType: 'image/jpeg' | 'image/png';
-        width: number;
-        height: number;
-        sizeBytes: number;
-        expiresAt: string;
-      };
-    }
-  | { status: 'cancelled' }
-  | {
-      status: 'blocked';
-      reason:
-        | 'permission_denied'
-        | 'consent_required'
-        | 'feature_disabled'
-        | 'not_task_linked'
-        | 'host_unsupported';
-    };
-```
+### `sprout.asset.upload({source:{type:'capture',captureId}}): Promise<AssetUploadResult>` — Feature-gated
 
-### `sprout.asset.upload({source:{type:'capture',captureId}})` — Feature-gated
+Explicitly uploads one accepted host-local capture. The native host owns the
+file URI and transfer credentials; Canvas JS sends only the opaque `captureId`.
+Only `{status:'ready'}` returns a durable `assetId` and host-safe `src`. Upload
+may take up to two minutes. There is no string/base64/file-URI upload API.
 
-This explicit call is the only Phase-1 transition that persists a capture. The
-native host owns the file URI and transfer credentials; Canvas sends only the
-opaque `captureId`. Only `status: 'ready'` returns a durable `assetId`.
+### `sprout.asset.resolve(assetId: string): Promise<AssetResolveResult>` — Feature-gated
 
-```ts
-type ResolvedAsset = {
-  assetId: string;
-  kind: 'image';
-  mimeType: 'image/jpeg' | 'image/png';
-  sizeBytes: number;
-  width: number;
-  height: number;
-  createdAt: string;
-  src: string;
-  srcExpiresAt?: string;
-};
+Re-authorizes a durable asset for rendering and returns either a ready
+host-safe source or a coarse unavailable result. The result never includes a
+storage provider, bucket/path, signed upload URL, digest, scan details, or
+bytes. Resolve retains the normal ten-second request timeout.
 
-type AssetUploadResult =
-  | { status: 'ready'; asset: ResolvedAsset }
-  | {
-      status: 'blocked';
-      reason:
-        | 'capture_expired'
-        | 'feature_disabled'
-        | 'consent_required'
-        | 'not_task_linked'
-        | 'too_large'
-        | 'unsupported_type'
-        | 'safety_blocked';
-    };
-```
-
-### `sprout.asset.resolve(assetId: string)` — Feature-gated
-
-Re-authorizes a durable asset for rendering. Persist only `assetId`; the
-returned `src` is host-safe and may expire.
-
-```ts
-type AssetResolveResult =
-  | { status: 'ready'; asset: ResolvedAsset }
-  | {
-      status: 'unavailable';
-      reason: 'not_available' | 'feature_disabled' | 'host_unsupported';
-    };
-```
-
-Expected cancellation, policy blocks, and unavailable assets resolve through
-these unions. Malformed requests, infrastructure failures, and timeouts reject
-with the SDK's ordinary `Error`; keep the fallback in both branches.
-
----
-
-## Roadmap — not yet available (do not build on these)
-
-The methods in this section exist in the SDK type surface so you can see what
-is coming, but **no host implements them yet**. Calling any of them today
-rejects immediately with `Error("unsupported in this host yet: <method>")` on
-iOS and web alike — it is a plain `Error`, not a typed `SproutCanvasError`.
-Do not ship a canvas that depends on these; their shapes may still change.
+These namespaced methods exist so Canvas code can be authored against the final
+byte-free contract. Authors must handle `host_unsupported` /
+`feature_disabled` and provide a non-camera fallback. SDK presence alone does
+not mean the family or environment has enabled runtime media.
 
 ### `sprout.history(limit?: number): Promise<{ items: Attempt[] }>` — Roadmap
 
@@ -651,6 +1195,8 @@ This is **not** a request/response Roadmap method. `sprout.session.act()`
 always posts a fire-and-forget `session.act` envelope, but it is only useful on
 hosts that wire the optional session seam and deliver `session.update` snapshots.
 
+Ordinary solo canvas hosts can safely ignore the envelope.
+
 **Board-play contract (family boards):** a finished play must cross the SDK
 boundary — `sprout.session.act(verb, payload)` on session-wired hosts, or the
 `sprout.complete(...)` crossing (settlement writes the round-stamped wall
@@ -658,7 +1204,6 @@ contribution). Renders must come from `session.update` snapshots or history
 re-reads, never from canvas-local memory alone: local-only state is invisible
 to the other kid's device. Conformance tooling asserts these crossings at the
 SDK boundary (see the boards guide's multiplayer contract).
-Ordinary solo canvas hosts can safely ignore the envelope.
 
 ### `sprout.session`
 
@@ -1037,7 +1582,10 @@ rarely need it — assignment already persists.
   write-amplification and bloat the run.
 - **JSON-serializable values only.** No functions, DOM nodes, `Date`, `Map`,
   `Set` — they're stripped on save.
-- **No PII / identifiers** in `sprout.state`. Activity data only.
+- **No PII or user/family identifiers** in `sprout.state`: never persist names,
+  account IDs, family IDs, auth tokens, or other identity data. An opaque runtime
+  `assetId` is allowed as a durable activity reference. Persist only that ID —
+  never an asset `src`, camera `captureId`, local preview, or upload credential.
 - **Always wire `sprout.state` — every canvas.** Persist the child's progress
   (current step, answers, score-so-far) so they resume where they left off. A
   canvas that ignores it restarts the child from scratch on every reopen, which
@@ -1283,7 +1831,7 @@ flow where the agent is reading-then-modifying.
    the canvas are (a) the auto-injected SDK, (b) inline `<script>` / `<style>`
    blocks, (c) same-origin manifest assets, and (d) external subresources
    loaded via the canvas-CDN proxy in rule 2 (`<script src>`, `<link href>`,
-   `<img src>`, `<audio src>`, etc.). Feature-gated runtime media uses only the
+   `<img src>`, `<audio src>`, etc.). Runtime media uses only the namespaced,
    host-mediated `sprout.camera` / `sprout.asset` contract described above.
 
 2. **External `<script src>` / `<link href>` / `<img src>` ONLY via the
@@ -1412,6 +1960,10 @@ timeout (`sprout.<method> timed out after 10000ms`), or the host's reason string
 `code` / `retryable` — every rejection is a base `Error`; branch on
 `err.message` only if you must.
 
+Expected runtime-media outcomes are different: cancellation, policy blocks,
+and unavailable assets resolve through the documented discriminated unions.
+Only malformed requests, infrastructure failures, and timeouts reject.
+
 Most failures aren't worth retrying mid-canvas (a read timed out, or the host
 rejected it). Show a friendly fallback and call `sprout.complete()` to end
 gracefully:
@@ -1426,11 +1978,16 @@ try {
 }
 ```
 
-(For feature-gated runtime media, use the same try/fallback pattern around
+(For feature-gated runtime media, the same try/fallback pattern applies around
 `sprout.camera.capture()` / `sprout.asset.upload()`.)
 
-Timeouts: SDK methods reject after 10 seconds if the host doesn't respond.
-This is a defensive timeout — under normal conditions reads return in <500ms.
+Timeouts: ordinary SDK requests reject after 10 seconds, explicit asset upload
+after 2 minutes, and feature-gated native camera capture after 5 minutes.
+Health Canvas proof methods use their documented 120s/120s/15s/30s deadlines
+so a human permission or camera sheet is not mistaken for a hung read. These
+are defensive limits; expected runtime-media cancel/permission/policy outcomes
+resolve as typed results, while Health proof failures should use the same safe
+fallback as unsupported hosts.
 
 ---
 
