@@ -31,7 +31,7 @@ Conventions for this file:
 
 ## Entries
 
-- version: 2026.08.05-6
+- version: 2026.08.05-7
   surface: behavior
   change: >-
     Every shared idempotent MCP call now binds its Idempotency-Key to the
@@ -54,6 +54,24 @@ Conventions for this file:
   details_diff: |
     ~ policy changed: all shared idempotent MCP calls bind key reuse to request arguments and resolved family
     + error added: IDEMPOTENCY_CONFLICT (same key reused for different intent)
+
+- version: 2026.08.05-6
+  surface: tool
+  change: >-
+    task_create accepts optional Canvas-owned assignment values at
+    canvasSpec.setup for direct Canvas tasks. The selected Canvas defines the
+    allowed fields and constraints. Invalid setup returns all repairable issues
+    together, while successful setup is frozen into the child's Canvas run.
+  action: update_calls
+  agent_guidance: >-
+    Put only the values requested by the selected Canvas under
+    canvasSpec.setup. Do not send a profile, instructionId, schema, prompt, or
+    canvasDataHash there; those belong to the Canvas or server. Repair every
+    returned issue before retrying. Program tasks and task_update do not accept
+    setup yet.
+  details_diff: |
+    ~ tool changed: task_create (direct Canvas tasks add optional canvasSpec.setup)
+    ~ resource changed: sprout://canvas/sdk (adds the read-only sprout.values runtime surface)
 
 - version: 2026.08.05-5
   surface: tool
@@ -147,7 +165,6 @@ Conventions for this file:
     packageContents only for aggregate kind counts.
   details_diff: |
     ~ tool changed: marketplace_inspect (adds public-safe packageIncludes identities)
-
 - version: 2026.08.05-2
   surface: tool
   change: >-
