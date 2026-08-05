@@ -31,7 +31,7 @@ Conventions for this file:
 
 ## Entries
 
-- version: 2026.08.05-4
+- version: 2026.08.05-5
   surface: tool
   change: >-
     Successful gems_adjust responses now include both previousBalance and
@@ -47,6 +47,68 @@ Conventions for this file:
   details_diff: |
     ~ tool changed: gems_adjust (adds previousBalance; serialized legacy behavior remains active)
 
+- version: 2026.08.05-4
+  surface: tool
+  change: >-
+    Screen-time verbs stop reporting intent as enforcement, and stop accepting
+    commands they can prove will not land. screentime_lock and screentime_unlock
+    DROP isLocked and enforceabilityWarning and now either ACCEPT
+    ({commandAccepted: true, itemId, deviceAcknowledgement}) or REFUSE
+    ({commandAccepted: false, refusedReason, deviceAcknowledgement}) and mint
+    nothing. Refusal happens only on positive knowledge that nothing can apply
+    the command (no device has approved Screen Time authorization, or no
+    server-side configuration exists); a dark or stale device still accepts. screentime_query_state is restructured into
+    desiredState (what the server ordered) and servedState (what it will tell
+    you, with a provenance of device_evidence, last_confirmed or legacy and an
+    evidence age), plus budget, deviceAcknowledgement, activeScheduleId and
+    screenTimeAuthStatus. screentime_review_request is restructured into
+    {request, gems, command, deviceAcknowledgement}, where command is null when
+    the review queued nothing device-wide. reward_review_claim adds screenTime
+    {granted, minutes, itemId} or null, disclosing that approving a claim can
+    hand a child device time. New tool screentime_describe_command reads one
+    command's true lifecycle from its delivery receipts. Settings and schedule
+    writes return propagation {mechanism, appliesAt} and their descriptions
+    teach that standing config is not a queued command. screentime_get_settings
+    is no longer annotated read-only, because it creates a default settings row.
+  action: update_calls
+  agent_guidance: >-
+    Check commandAccepted first. FALSE means the command was refused and nothing
+    was queued: refusedReason names the one thing to fix (no_authorized_device =
+    no device has granted Screen Time authorization; no_block_list = nothing is
+    configured to enforce). Tell the parent that specific thing and re-send once
+    it is done; do not retry blindly. TRUE means a command was QUEUED with a
+    deadline, never that a device obeyed. Keep the itemId and call screentime_describe_command
+    for the real outcome. Only applied means the change happened; expired is
+    terminal and needs a re-send; apply_failed is still inside its deadline and
+    may yet succeed; superseded means a newer command took the lane. When a
+    command both failed on the device and expired the status is expired, and
+    error.code still carries what the device said.
+    Do not tell a parent a device is locked or unlocked until the status is
+    applied. On screentime_query_state, read desiredState and servedState
+    together: when they disagree the command has not landed, and say that rather
+    than picking one. Trust servedState only as far as its provenance allows;
+    legacy means no device confirmed anything. Check deviceAcknowledgement.ageSeconds
+    before promising anything about a family whose devices may be dark, and use
+    screentime_list_devices as the enforcement-evidence read. Before approving a
+    reward claim, check screenTime: a non-null value means you are handing over
+    device time, not only gems, and the parent should be told so. Settings and
+    schedule edits are standing config: they have no itemId, cannot expire, and
+    converge at the device's next reconcile, so never poll
+    screentime_describe_command for them. Send an Idempotency-Key when creating a
+    schedule so a retry cannot duplicate it.
+  details_diff: |
+    + tool added: screentime_describe_command
+    ~ tool changed: screentime_lock (description, outputSchema)
+    ~ tool changed: screentime_unlock (description, outputSchema)
+    ~ tool changed: screentime_query_state (description, outputSchema)
+    ~ tool changed: screentime_review_request (description, outputSchema)
+    ~ tool changed: reward_review_claim (description, outputSchema)
+    ~ tool changed: screentime_get_settings (description, annotations)
+    ~ tool changed: screentime_update_settings (description, outputSchema)
+    ~ tool changed: screentime_create_schedule (description, outputSchema)
+    ~ tool changed: screentime_update_schedule (description, outputSchema)
+    ~ tool changed: screentime_delete_schedule (description, outputSchema)
+    ~ tool changed: screentime_list_devices (description, outputSchema)
 - version: 2026.08.05-3
   surface: tool
   change: >-
