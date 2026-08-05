@@ -31,6 +31,22 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.05-1
+  surface: tool
+  change: >-
+    gems_adjust now refuses an ordinary removal that would make available gems
+    negative. A removal equal to the available balance still succeeds. Successful
+    responses now include both previousBalance and newBalance; insufficient-gem
+    errors include the current available amount and requested debit, with no
+    ledger row written.
+  action: none
+  agent_guidance: >-
+    Read previousBalance and newBalance from a successful gems_adjust result.
+    On REWARD_INSUFFICIENT_GEMS, lower the removal to at most the returned
+    available amount or add gems before retrying.
+  details_diff: |
+    ~ tool changed: gems_adjust (serialized no-below-zero debit and previousBalance result)
+
 - version: 2026.08.04-7
   surface: tool
   change: >-
