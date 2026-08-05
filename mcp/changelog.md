@@ -31,6 +31,35 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.05-9
+  surface: tool
+  change: >-
+    reward_update now uses a create-derived mergeFrom object. Omitted fields
+    preserve current values, supported nullable fields clear with null, and a
+    dry run returns the complete effective Reward with its revision and
+    specHash. A commit can echo that hash to reject a stale preview. Category,
+    screen-time, and quantity edits refuse while claims are pending. The prior
+    flat request remains a one-version compatibility parser. Photo placement
+    is now explicit: reward_create accepts top-level photoUploadId, while
+    reward_update uses mergeFrom.photoUploadId and null clears it. The current
+    reward_prepare_photo_upload transfer mode still requires a client capable
+    of issuing the returned raw HTTPS PUT; ChatGPT and MCP-only callers cannot
+    complete that mode yet.
+  action: update_calls
+  agent_guidance: >-
+    For a new edit, call reward_update with { rewardId, mergeFrom: { ... },
+    dryRun: true }. Review the full Reward and issues, then commit the same
+    mergeFrom with dryRun: false and the returned specHash. Preview and commit
+    are different payloads, so use different Idempotency-Keys; reuse a key only
+    for an unchanged retry. Resolve pending claims before changing category,
+    screenTimeSpec, or quantity. Keep child-specific policy changes on
+    reward_update_child_claim_policy. A capable raw-HTTP client may PUT photo
+    bytes and then use photoUploadId as described above. ChatGPT should omit
+    the photo until reward_prepare_photo_upload gains a file-ingestion mode.
+  details_diff: |
+    ~ tool changed: reward_update (create-derived mergeFrom, dry-run/hash/revision controls, complete readback, pending-claim guard, one-version flat compatibility)
+    ~ tool changed: reward_prepare_photo_upload (canonical create/update/clear placement and capable-client-only transfer guidance)
+
 - version: 2026.08.05-8
   surface: behavior
   change: >-
