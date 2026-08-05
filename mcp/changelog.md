@@ -31,7 +31,7 @@ Conventions for this file:
 
 ## Entries
 
-- version: 2026.08.05-1
+- version: 2026.08.05-2
   surface: tool
   change: >-
     gems_adjust now refuses an ordinary removal that would make available gems
@@ -46,6 +46,24 @@ Conventions for this file:
     available amount or add gems before retrying.
   details_diff: |
     ~ tool changed: gems_adjust (serialized no-below-zero debit and previousBalance result)
+
+- version: 2026.08.05-1
+  surface: tool
+  change: >-
+    task_update now supports a separate Living Canvas values write for one
+    assigned child. The call accepts values with expectedValuesVersion and
+    returns the committed values and new version. task_describe exposes the
+    current values region only when the family has Living Canvas enabled.
+  action: update_calls
+  agent_guidance: >-
+    Read task_describe first, then send task_update with values and the current
+    valuesVersion (use 0 when the task has no assignment values). Include
+    childId when the task has more than one assigned child. Keep values writes
+    separate from metadata edits. A version conflict returns the current
+    version so you can re-read, merge, and retry.
+  details_diff: |
+    ~ tool changed: task_update (adds values, expectedValuesVersion, reason, and childId for the values-only lane)
+    ~ tool changed: task_describe (adds gated state.values and state.valuesVersion)
 
 - version: 2026.08.04-7
   surface: tool
