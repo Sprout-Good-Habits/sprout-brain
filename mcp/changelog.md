@@ -31,6 +31,33 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.05-10
+  surface: tool
+  change: >-
+    heartbeat_create and heartbeat_update now preview one canonical definition
+    and bind commits to its specHash. Definition edits use mergeFrom. New
+    heartbeat_pause, heartbeat_resume, and terminal heartbeat_cancel tools own
+    lifecycle changes. Heartbeat reads now return child scope, skill/run
+    context, and lifecycle status.
+  action: update_calls
+  agent_guidance: >-
+    Dry-run heartbeat_create or heartbeat_update, repair every issue, then
+    commit the same effective definition with the returned specHash. Preview
+    and commit are different payloads because dryRun/specHash change, so they
+    must use different Idempotency-Keys; reuse a key only for an unchanged
+    retry. Use mergeFrom for sparse definition edits. Use heartbeat_pause,
+    heartbeat_resume, and heartbeat_cancel for lifecycle; cancelled Heartbeats
+    cannot be edited or resumed.
+  details_diff: |
+    + tool added: heartbeat_pause
+    + tool added: heartbeat_resume
+    + tool added: heartbeat_cancel
+    ~ tool changed: heartbeat_create (canonical definition dry-run/specHash commit)
+    ~ tool changed: heartbeat_update (sparse mergeFrom dry-run/specHash commit)
+    ~ tool changed: heartbeat_describe (delegates canonical create/update preview)
+    ~ tool changed: heartbeat_list (full definition and lifecycle readback)
+    ~ resource changed: sprout://heartbeat/authoring-guide
+
 - version: 2026.08.05-9
   surface: tool
   change: >-
