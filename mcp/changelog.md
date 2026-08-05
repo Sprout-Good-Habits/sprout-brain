@@ -31,6 +31,29 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.05-11
+  surface: tool
+  change: >-
+    heartbeat_update now rejects dryRun and preview controls on legacy
+    pause/resume/cancel action payloads instead of executing a lifecycle write
+    during preview. Heartbeat names must contain a non-whitespace character.
+    Canonical create serializes with Skill archival, and execution uses the
+    stored routine family as its authority. The authoring guidance now matches
+    the supported single-skill default: assignmentSkillId is optional.
+  action: update_calls
+  agent_guidance: >-
+    Use heartbeat_pause, heartbeat_resume, or heartbeat_cancel for lifecycle
+    changes; do not send dryRun, specHash, or acknowledgedWarnings with legacy
+    lifecycle actions. Give every Heartbeat a visible non-blank name. For the
+    simplest Heartbeat, supply runContext.runSkillId and omit
+    assignmentSkillId; add a distinct assignment-shaped skill only when it
+    needs to own the recurring lifecycle.
+  details_diff: |
+    ~ tool changed: heartbeat_create (non-blank names, archive-safe dependency commit, corrected single-skill guidance)
+    ~ tool changed: heartbeat_update (non-blank names, lifecycle preview controls refused)
+    ~ tool changed: skill_write (corrected optional assignmentSkillId guidance)
+    ~ resource changed: sprout://heartbeat/authoring-guide
+
 - version: 2026.08.05-10
   surface: tool
   change: >-
