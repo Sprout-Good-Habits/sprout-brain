@@ -31,7 +31,7 @@ Conventions for this file:
 
 ## Entries
 
-- version: 2026.08.05-7
+- version: 2026.08.05-8
   surface: behavior
   change: >-
     Every shared idempotent MCP call now binds its Idempotency-Key to the
@@ -54,6 +54,60 @@ Conventions for this file:
   details_diff: |
     ~ policy changed: all shared idempotent MCP calls bind key reuse to request arguments and resolved family
     + error added: IDEMPOTENCY_CONFLICT (same key reused for different intent)
+
+- version: 2026.08.05-7
+  surface: tool
+  change: >-
+    task_prepare_reference_upload gains a `file` input mode: supply
+    `{download_url, file_id, mime_type?, file_name?}` and the server downloads,
+    normalizes, and moderates the reference photo itself, returning
+    `{assetId, ingest: {state: "complete"}}` — no further call needed. This
+    fixes the only path an MCP agent could previously use to finish a
+    golden_compare reference upload: the prior signed-PUT transfer route needs
+    the caller to issue a raw HTTPS PUT, which an MCP agent — able only to
+    call declared MCP tools — structurally cannot do.
+    `file` is mutually exclusive with the existing `mimeType`/`sizeBytes`
+    signed-PUT fields; that mode is unchanged for any caller that does hold a
+    session, but it is now documented as DO-NOT for an MCP agent, which by
+    definition cannot complete it. The result is now discriminated on a `mode`
+    field ("ingest" | "transfer") so a caller can tell the branches apart
+    without probing for key presence. `annotations.openWorldHint` is now true
+    (the tool fetches an external HTTPS origin in file mode) and the tool is
+    now rate limited per user; task_finalize_reference_upload is unaffected and
+    stays closed-world.
+  action: update_calls
+  agent_guidance: >-
+    Switch to `file`: the signed-PUT fields return a PUT envelope that an MCP
+    agent has no way to actually issue (it can only call declared MCP tools),
+    so that mode cannot be completed from this surface — calls that still use
+    it never produce a finalized reference. If you hold the bytes but no
+    download_url, you cannot complete this tool at all; obtain a fetchable
+    HTTPS download_url (the ChatGPT file param supplies one) rather than
+    falling back to mimeType/sizeBytes. Branch on the response's `mode`:
+    "ingest" is already finalized, "transfer" still needs the PUT plus
+    task.finalize_reference_upload. `operationKey` is still required in both
+    modes and still governs idempotency: a retry with the same key and the
+    SAME photo returns the same completed assetId; the same key with a
+    DIFFERENT photo is refused with REFERENCE_ALREADY_FINALIZED rather than
+    silently keeping the first photo. Errors on `details.reason` are the
+    signed-PUT vocabulary (REFERENCE_UNSUPPORTED_MEDIA,
+    REFERENCE_MODERATION_BLOCKED, REFERENCE_TASK_NOT_FOUND,
+    REFERENCE_UPLOAD_EXPIRED, REFERENCE_ALREADY_FINALIZED,
+    REFERENCE_OPERATION_KEY_CONFLICT, REFERENCE_RATE_LIMITED) plus three
+    file-mode additions: REFERENCE_DOWNLOAD_FAILED (retryable transport fault
+    — retry the same call), REFERENCE_DOWNLOAD_REJECTED (the URL/destination
+    /payload was refused — supply a different download_url),
+    REFERENCE_STORAGE_FAILURE (retryable server-side persistence fault), and
+    REFERENCE_INGEST_IN_PROGRESS (an earlier attempt on this operationKey is
+    still transferring/moderating — retry the SAME call with the SAME
+    operationKey shortly). The tool is now also rate limited per user: a
+    per-user throttle can refuse
+    BEFORE the handler runs with code RATE_LIMITED and
+    `details.retry_after_ms` (no `details.reason` — this is a different
+    refusal shape from the list above); wait that interval, then retry the
+    same call.
+  details_diff: |
+    ~ tool changed: task_prepare_reference_upload (description, inputSchema, outputSchema, annotations.openWorldHint: false -> true, _meta['openai/fileParams'] added, rate limited per user, inputSchema publishes a `oneOf` mode-XOR constraint mirroring canvas_prepare_upload's)
 
 - version: 2026.08.05-6
   surface: tool
