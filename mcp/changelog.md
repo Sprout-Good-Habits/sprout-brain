@@ -31,6 +31,30 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.05-6
+  surface: behavior
+  change: >-
+    Every shared idempotent MCP call now binds its Idempotency-Key to the
+    request's canonical JSON arguments and resolved family. Reusing the same
+    caller/tool/key slot for changed input or a different selected family
+    returns IDEMPOTENCY_CONFLICT before replay probing, validation, rate
+    limiting, or handler execution. Matching retries keep their existing
+    in-flight and cached-replay behavior. Legacy cache records without a request
+    fingerprint are handled conservatively until their existing 24-hour TTL
+    expires. The ephemeral cache still fails open when its substrate is
+    unavailable, so domain convergence remains the authority for costly effects.
+  action: update_calls
+  agent_guidance: >-
+    Reuse an Idempotency-Key only when retrying the exact same command for the
+    same family. If the arguments or selected family intentionally change, send
+    a new key. On IDEMPOTENCY_IN_FLIGHT, wait and retry the same input and key.
+    On IDEMPOTENCY_CONFLICT, do not retry the changed command with that key; use
+    a new key for the new intent. A conflict means the changed command was not
+    evaluated or applied.
+  details_diff: |
+    ~ policy changed: all shared idempotent MCP calls bind key reuse to request arguments and resolved family
+    + error added: IDEMPOTENCY_CONFLICT (same key reused for different intent)
+
 - version: 2026.08.05-5
   surface: tool
   change: >-
