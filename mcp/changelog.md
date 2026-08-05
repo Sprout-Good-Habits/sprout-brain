@@ -31,6 +31,155 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.04-7
+  surface: tool
+  change: >-
+    mcp_health now reports every protocol request method accepted by the MCP
+    router. The methods list adds resources/list, resources/templates/list,
+    resources/read, resources/subscribe, and resources/unsubscribe. It remains
+    fixed server metadata and does not expose tool availability, feature flags,
+    resource identifiers, or caller authorization state.
+  action: none
+  agent_guidance: >-
+    Treat mcp_health.methods as the server's protocol request-method surface.
+    Discover callable tools through tools/list and discover visible resources
+    through resources/list plus resources/templates/list; each call still
+    applies its normal authentication, scope, and family checks.
+  details_diff: |
+    ~ tool changed: mcp_health (methods now derives from the router authority and includes resource request methods)
+
+- version: 2026.08.04-6
+  surface: tool
+  change: >-
+    canvas_create and canvas_update now advertise living-canvas values and
+    playbook inputs as JSON objects. Strict MCP clients no longer hide or flag
+    those parameters as typeless. Server-side validation is unchanged: an
+    invalid document still returns the guided living-canvas rejection with the
+    reason and a valid example.
+  action: none
+  agent_guidance: >-
+    Author values and playbook as JSON objects. Use values for the canvas's
+    runtime content document and playbook for its field meanings, initialization,
+    update instructions, constraints, and stable-id rule. If the write is
+    rejected, correct the reported issue using the returned valid example.
+  details_diff: |
+    ~ tool changed: canvas_create (values/playbook advertised as object parameters)
+    ~ tool changed: canvas_update (values/playbook advertised as object parameters)
+
+- version: 2026.08.04-5
+  surface: tool
+  change: >-
+    task_pause and task_resume now change one child-owned task's assignment
+    availability without editing its schedule or specification. Both calls
+    request an absolute state, so repeating the same call returns changed:false
+    instead of toggling. task_update now rejects unknown top-level fields rather
+    than silently dropping them, including active, paused, assignmentState, and
+    childId.
+  action: none
+  agent_guidance: >-
+    Use task_pause {taskId} to make a task unavailable and task_resume {taskId}
+    to restore eligibility. Do not send lifecycle fields through task_update or
+    scheduleSpec. Pause preserves runs, submissions, progress, history, Quest
+    rows, and rewards. If unresolved work exists, follow the returned
+    IN_FLIGHT_WORK_BLOCKED warning and resume before completing or approving it.
+  details_diff: |
+    + tool added: task_pause
+    + tool added: task_resume
+    ~ tool changed: task_update (strict unknown-field rejection and lifecycle guidance)
+    ~ resource changed: sprout://task/authoring-guide (pause/resume lifecycle guidance)
+
+- version: 2026.08.04-2
+  surface: tool
+  change: >-
+    task_create and task_update now describe dailyTarget and
+    canvasSpec.grading.attemptsPerDay as legacy names for the rewarded
+    completion target of one occurrence. A schedule task counts the target per
+    covered day; onetime and program tasks count it over the task lifetime.
+    Runtime completion checks now follow that same rule instead of completing
+    every onetime or program task after its first approval.
+  action: none
+  agent_guidance: >-
+    Use one onetime task when a child should earn several approved completions
+    toward one dated occurrence, and one recurring schedule task when that
+    target should reset on covered days. Paid targets above the safety cap are
+    refused; lower the rewarded target to the cap or fewer, and optionally
+    enable policy.freePlay for additional unrewarded plays.
+  details_diff: |
+    ~ tool changed: task_create (description and field descriptions)
+    ~ tool changed: task_update (description and field descriptions)
+    ~ resource changed: sprout://task/authoring-guide (occurrence and replay guidance)
+
+- version: 2026.08.04-1
+  surface: tool
+  change: >-
+    task_describe / task_runs_get tool descriptions now state the
+    no-retain/no-forward/no-train instruction for a fetched proof image
+    directly, not only in sprout://task/authoring-guide and this changelog's
+    agent_guidance — the tool's own description is the one surface every
+    caller is guaranteed to see on every call.
+  action: none
+  agent_guidance: >-
+    Do not retain, forward, or train on a fetched proof image beyond the
+    current turn — treat it as ephemeral child-image data. This guidance
+    already applied; it is now stated in the tool description itself too.
+  details_diff: |
+    ~ tool changed: task_describe (description)
+    ~ tool changed: task_runs_get (description)
+
+- version: 2026.08.03-3
+  surface: tool
+  change: >-
+    task.describe / task.runs.get: proof.url/expiresAt additionally require
+    the caller hold canvas:read alongside task:read (a task:read-only caller
+    now sees proof.assetId only — the tool descriptions and
+    sprout://task/authoring-guide, which now also lists task.runs.get as
+    required reading, both say so). Both tools are rate-limited server-side.
+    Doc correction: the prior entry's "storage paths and provider details
+    never cross MCP" overstated it — the signed URL does carry a storage
+    path and provider host.
+  action: reauth
+  reauth:
+    scopes_added: ["canvas:read"]
+    grants_before: "2026-08-03"
+    how: >-
+      Reconnect the Sprout connector, or mint a fresh connection token that
+      includes canvas:read alongside task:read. Existing task:read-only grants
+      keep working — task.describe and task.runs.get still return every other
+      field — but proof.url/expiresAt are withheld and you will see
+      proof.assetId alone.
+  agent_guidance: >-
+    Never cache a proof URL past expiresAt; call the tool again for a fresh
+    one, and don't retry a stale URL or speculate about why a proof is
+    unavailable. Do not retain, forward, or train on a fetched proof image
+    beyond the current review turn — treat it as ephemeral child-image data.
+  details_diff: |
+    ~ tool changed: task.describe (description — canvas:read requirement + anti-speculation guidance)
+    ~ tool changed: task.runs.get (description — canvas:read requirement + anti-speculation guidance)
+    ~ resource changed: sprout://task/authoring-guide (description lists task.runs.get; proof section corrected + data-minimization guidance)
+
+- version: 2026.08.03-2
+  surface: tool
+  change: >-
+    task.describe pending runtime-photo submissions and settled state entries,
+    plus task.runs.get proof-bearing runs, now return an expiring, family-scoped
+    proof.url plus expiresAt alongside the durable proof.assetId while the
+    moderated asset is active, retained, and currently authorized. Each pending
+    task.describe submission carries its own proof association so multiple
+    attempts remain unambiguous before parent review. The URL lasts five minutes.
+    Blocked, deleted, expired, swept, or policy-revoked proofs remain
+    identity-only; storage paths and provider details never cross MCP.
+  action: none
+  agent_guidance: >-
+    Fetch proof.url promptly when independently checking a child's photo, and
+    treat expiresAt as authoritative. Never cache or persist the URL; call
+    task.describe or task.runs.get again to obtain a fresh one. If proof contains
+    only assetId, the proof identity still exists but its bytes are not currently
+    readable—do not retry the stale URL or infer why it is unavailable.
+  details_diff: |
+    ~ tool changed: task.describe (outputSchema — pending submissions and state proof may add url + expiresAt)
+    ~ tool changed: task.runs.get (outputSchema — optional proof added)
+    ~ resource changed: sprout://task/authoring-guide (proof read/expiry guidance)
+
 - version: 2026.08.03-1
   surface: tool
   change: >-
