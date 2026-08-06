@@ -39,7 +39,7 @@ Released today: `whoami`, `sprout.participants` / `sprout.onParticipantsChanged`
 `openExternalUrl`, `sprout.tts.speak` /
 `sprout.tts.stop`, `sprout.rive.resolveAsset`, `signal`, `sprout.progress`
 (`setup` / `show` / `hide` / `set` / `clear`), `sprout.journey` (`get` / `save`),
-`sprout.log`, `score` / `complete` / `timed`, and the legacy
+`sprout.values`, `sprout.log`, `score` / `complete` / `timed`, and the legacy
 `SproutBridge`. The Health Canvas proof methods (`sprout.health`,
 `sprout.camera`, and `sprout.ai`) are also released, but only in the
 flag-enabled parent board host described below. Everything in the **Roadmap**
@@ -1308,6 +1308,69 @@ keep `props` JSON-serializable.
 
 ---
 
+## Back press — consume or bubble (Released)
+
+```ts
+sprout.onBackPress(handler: () => boolean | void): void;
+```
+
+The kid's device Back affordance always used to exit the whole activity — a
+canvas had no way to participate. `onBackPress` lets your canvas move its
+**own internal state** backward instead: quiz question N → N-1, a result
+screen → retake, a confirmation → the thing being confirmed. It is **not**
+multi-page canvas navigation (`navigable_multi_page` stays blocked) — it's
+one canvas handling its own Back gesture.
+
+Register ONE handler. When the kid taps Back, the host calls it
+**synchronously** and reads the return value:
+
+- Return `true` → **consume** the press. The host does nothing further; your
+  canvas stays mounted and moves its own state backward.
+- Return anything else (including nothing, or throw) → **bubble** the press.
+  Today's behavior: the host exits the activity.
+
+```js
+let question = 0;
+sprout.onBackPress(() => {
+  if (question === 0) return false; // nothing to go back to — bubble, exit
+  question -= 1;
+  render(question);
+  sprout.progress.set({ current: question, total: TOTAL }); // bar animates BACKWARD
+  return true; // consumed — stay in the canvas
+});
+```
+
+**Purely additive.** A canvas that never calls `onBackPress` is
+byte-identical to pre-consume-or-bubble behavior — every Back press exits.
+Calling it again REPLACES the previous handler (one slot, one owner of "what
+does Back mean right now" — not a subscriber list).
+
+**Bounded and safe by construction:**
+
+- **Short deadline.** The host applies its own bounded wait on your answer
+  (currently 300ms — `BACK_REQUEST_TIMEOUT_MS` in `canvas-shell.ts`). A slow,
+  async-looking, or throwing handler is treated as "did not consume" and the
+  host exits — a canvas bug can never freeze the Back button.
+- **Escape hatch — the kid can always leave.** The host will not honor more
+  than 2 CONSECUTIVE consumed presses; the 3rd in a row always exits
+  regardless of what your handler returns. This is a hard safety floor, not
+  configurable, and NOT reset by other canvas activity between presses (a
+  canvas can't game it by interleaving a `signal` or `progress.set` call) —
+  it resets only when a press genuinely bubbles. A well-behaved canvas that
+  legitimately needs to consume 3+ backward presses in a row without any
+  other activity between them will hit this floor; that tradeoff is
+  deliberate (see `MAX_CONSECUTIVE_CONSUMED_BACK` in `canvas-shell.ts`).
+- **The exit path is unchanged.** Whatever the host does when a press
+  bubbles (timer-gate checks, held-completion flushes, navigation) runs
+  exactly as before SPR-4055 — a consumed press simply never reaches it.
+
+**Pairs with the progress bar's documented backward contract:** the bar
+already animates both ways and only celebrates forward moves (see below) —
+so reporting a smaller `current` from your `onBackPress` handler is the
+correct, complete way to reflect the backward move to the kid.
+
+---
+
 ## Progress — host-rendered bar (Released)
 
 ```ts
@@ -1352,9 +1415,11 @@ Semantics:
   (an `emoji` rider defaults milestones off — the rider owns the track).
 - **The host clamps.** Out-of-range `current` is clamped to `[0, total]` —
   report honest values; clamping is a safety net, not an API.
-- **Backward moves are allowed.** If the kid taps Back, report the smaller
-  `current` — the bar animates both ways. Celebrations fire only on forward
-  moves, so an honest backward report never triggers a false celebration.
+- **Backward moves are allowed.** If your canvas consumes the kid's Back
+  press via `sprout.onBackPress` (see above) and moves its own state
+  backward, report the smaller `current` — the bar animates both ways.
+  Celebrations fire only on forward moves, so an honest backward report
+  never triggers a false celebration.
 - **Timers encourage, never punish.** The countdown renders to the RIGHT of
   the bar and flips to a gentle "Finish up!" at 0:00 — it never blocks,
   ends, or fails the activity. Time-based game logic is yours to run inside
@@ -1397,6 +1462,36 @@ sprout.progress.setup({
   timer: { targetSeconds: 120 }, // fresh countdown
 });
 ```
+
+## Task setup — `sprout.values` (Released)
+
+`sprout.values` is the setup document supplied when this task was created. Its
+fields come from the Canvas's own values contract, and Sprout validates the
+document before the task exists. The host freezes the validated document into
+the run and makes it available before your first line executes.
+
+```js
+const pages = sprout.values.pages;
+const instruction = sprout.values.instruction;
+renderReadingActivity({ pages, instruction });
+```
+
+The object is read-only, including nested objects and arrays. A direct or
+nested write throws `TypeError("sprout.values is read-only")`. A Canvas opened
+without setup receives an empty object.
+
+Keep these three surfaces separate:
+
+- **`sprout.values`** is the task author's frozen setup for this run. Read it;
+  do not save progress into it.
+- **`sprout.state`** is the child's resumable state for the current run.
+- **`sprout.journey`** is the child's small checkpoint that carries across
+  runs and days.
+
+The Canvas owns the allowed fields, required fields, types, constraints, and
+field explanations. A task author supplies values only. Task setup must never
+contain a schema, prompt, profile, instruction id, Canvas-data hash, or another
+attempt to redefine the Canvas contract.
 
 ## Durable journey — `sprout.journey.get` / `.save` (Released)
 
