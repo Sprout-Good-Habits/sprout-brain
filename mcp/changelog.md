@@ -2,8 +2,8 @@
 
 Machine-readable, append-only log of agent-visible contract changes. Consumed by
 agents (not humans) — served as the `sprout://changelog` MCP resource (newest
-first). Canonical editing home is **sprout-brain** (`mcp/changelog.md`); this
-file is the vendored copy the server bakes into its image and reads at boot.
+first). This is the canonical editing home; `apps/server/mcp/changelog.md` in sprout-app
+is the vendored copy the server bakes into its image and reads at boot.
 Keep the two in sync when editing (no automation yet — SPR-3120).
 
 Each entry is keyed to the `contractVersion` in `apps/server/mcp-contract.lock.json`
@@ -31,6 +31,693 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.11-1
+  surface: tool
+  change: >-
+    The memberType enum in family_list and family_select_context gained an
+    additive value, sprout_team. It marks a Sprout staff membership seat on a
+    family. Zero such memberships exist today and nothing can create one yet, so
+    no response can carry the value until a family separately opts in to Sprout
+    team access.
+  action: none
+  agent_guidance: >-
+    No call changes are required. Keep treating memberType as an open-ended
+    label and do not branch on sprout_team; if you ever receive it, the
+    membership belongs to Sprout staff, not to a member of the family.
+  details_diff: |
+    + memberType enum value added: sprout_team (family_list, family_select_context)
+
+- version: 2026.08.10-3
+  surface: tool
+  change: >-
+    task_list's canonical (non-Program) list-item shape now accepts an
+    optional submissions array of pending-review canvas proof submissions,
+    matching what task_describe already returns for a single task.
+  action: none
+  agent_guidance: >-
+    A task_list row may now carry submissions — check it the same way you
+    already check task_describe's submissions when deciding whether a task
+    has proof awaiting parent review; absence still means no pending
+    submissions, not that the field was never populated.
+  details_diff: |
+    ~ tool changed: task_list (outputSchema)
+
+- version: 2026.08.10-2
+  surface: behavior
+  change: >-
+    task_list, task_describe, and task_update read-backs are now permissive on
+    the stored emoji field: legacy rows whose emoji is a word (e.g. "star"),
+    blank, or a denylisted glyph serialize verbatim instead of failing the
+    whole call with INTERNAL_ERROR. task_list additionally degrades per row —
+    a stored row that cannot be projected at all is omitted from the page
+    (and logged server-side) instead of failing the entire list. Input
+    validation is unchanged: task_create and task_update still reject
+    non-glyph emoji values.
+  action: none
+  agent_guidance: >-
+    Treat emoji on read as a display hint, not a validated glyph — render it
+    only if it is a real emoji. Never copy a word emoji you read back into a
+    new write; task_create and task_update refuse non-glyph values.
+
+- version: 2026.08.10-1
+  surface: tool
+  change: >-
+    canvas_create and canvas_update can now return a
+    parent-approved-canvas warning when an authenticated family owner or
+    co-parent commits a private Canvas that uses both microphone input and
+    spoken audio. The approval applies only inside that family; sharing and
+    marketplace publication still require separate review.
+  action: none
+  agent_guidance: >-
+    No call changes are required. Treat parent-approved-canvas as confirmation
+    that the private family Canvas was approved for microphone input and spoken
+    audio. Do not describe it as approved for sharing or marketplace
+    publication.
+  details_diff: |
+    + hint kind added: parent-approved-canvas
+
+- version: 2026.08.09-1
+  surface: tool
+  change: >-
+    screentime_get_settings and screentime_update_settings no longer carry the
+    structured dayTime policy ({ enabled, startMinutes, endMinutes }). The field
+    is removed from both envelopes and from the tool descriptions. It described
+    a window nothing ever enforced: no code compared the current time against
+    it, so an agent could read the policy, reason about it and write it back
+    with zero effect on what any device blocked, while the tool description
+    promised a structured day-time policy.
+  action: update_calls
+  agent_guidance: >-
+    Stop sending dayTime in screentime_update_settings — it is now rejected as
+    an unknown field. Stop reading dayTime from screentime_get_settings. To make
+    screens unavailable during a window, call screentime_create_schedule
+    instead; named schedules are the surface that actually reaches devices.
+- version: 2026.08.08-5
+  surface: tool
+  change: >-
+    tools/list now represents reused schema components with standard local
+    JSON Schema references instead of repeating the same component inline.
+    The accepted inputs and validated outputs are unchanged; the full catalog
+    is smaller and remains below the 750 KB discovery limit.
+  action: none
+  agent_guidance: >-
+    No call changes are required. Clients should resolve local $ref entries in
+    inputSchema and outputSchema using the accompanying $defs in that tool's
+    schema document. Apps SDK file parameters remain expanded at their declared
+    property so clients can inspect required attachment metadata directly.
+  details_diff: |
+    ~ tool schemas changed: repeated components use local $ref / $defs encoding
+
+- version: 2026.08.08-3
+  surface: tool
+  change: >-
+    The Program tool family now uses one canonical definition and Task language
+    across create, read, update, assignment, and lifecycle operations. New
+    program_archive and program_updateAssignment verbs replace overloaded
+    delete/update behavior. program_delete is no longer advertised. The other
+    eight Program schemas changed together, including Task policy, Canvas setup,
+    reviewed specHash/baseHash commits, TaskSimple assignment reads, and bounded
+    list cursors.
+  action: update_calls
+  agent_guidance: >-
+    Refresh tools before the next Program call. Do not reuse mode, type, node,
+    tether, per-entity patch, or delete payloads. Build program_create from one
+    definition; use program_update with programId, mergeFrom, and baseHash;
+    program_assign with programId/childId; program_updateAssignment to pause or
+    resume; program_unassign to abandon; and program_archive for terminal
+    template lifecycle. A cached retired payload returns
+    PROGRAM_CONTRACT_CHANGED with writeDisposition:none and writes nothing.
+  details_diff: |
+    + tool added: program_archive
+    + tool added: program_updateAssignment
+    - tool removed: program_delete
+    ~ tool changed: program_create (description, inputSchema, outputSchema)
+    ~ tool changed: program_get (description, inputSchema, outputSchema)
+    ~ tool changed: program_list (description, inputSchema, outputSchema)
+    ~ tool changed: program_update (description, inputSchema, outputSchema)
+    ~ tool changed: program_assign (description, inputSchema, outputSchema)
+    ~ tool changed: program_getAssignment (description, inputSchema, outputSchema)
+    ~ tool changed: program_listAssignments (description, inputSchema, outputSchema)
+    ~ tool changed: program_unassign (description, inputSchema, outputSchema)
+
+- version: 2026.08.07-11
+  surface: tool
+  change: >-
+    task_prepare_reference_upload now supports local byte uploads directly on
+    the same call path as file-ingest. MCP agents can pass Base64 bytes via
+    `localBytes` — optional and mutually exclusive with `file` and signed-PUT
+    mode — validated with strict base64 round-trip checks that deterministically
+    reject malformed input and still enforce the runtime image byte cap. A
+    successful call returns an immediate `mode: "ingest", ingest.state:
+    "complete"` result. Existing file-ingest and signed-PUT modes are unchanged.
+  action: none
+  agent_guidance: >-
+    MCP callers may choose one upload mode per request: signed-PUT (`mimeType` +
+    `sizeBytes`), remote file ingest (`file`), or local-bytes ingest
+    (`localBytes`) when the agent already holds the bytes. `localBytes` is
+    optional in the schema and validated with strict base64 round-trip checks,
+    so oversized or malformed payloads fail at the boundary as BAD_INPUT. On
+    success, no PUT follows — `task_prepare_reference_upload` returns an
+    ingest-complete result directly.
+  details_diff: |
+    ~ tool changed: task_prepare_reference_upload (description, inputSchema)
+
+- version: 2026.08.07-10
+  surface: behavior
+  change: >-
+    Program-materialized Tasks now apply rewarded-completion targets and retry
+    caps using the cadence in scheduleSpec. Recurring Program Tasks reset those
+    limits each local calendar day; one-time Program Tasks keep one lifetime
+    occurrence. Program create/update now reject recurring scheduleSpec without
+    at least one weekday and reject days on one-time intent.
+  action: update_calls
+  agent_guidance: >-
+    Treat scheduleSpec as the cadence source for Program Tasks. A Program Task
+    with scheduleSpec.taskType "schedule" and at least one weekday in days can
+    be completed again on another local calendar day without being recreated.
+    days/startMinutes/durationMinutes are scheduling hints, not completion
+    gates; recurring limits reset even on weekdays omitted from days.
+    A Program Task with scheduleSpec.taskType "onetime" must omit days and
+    remains lifetime-scoped. Omit scheduleSpec entirely for an anytime Task.
+    Use policy.freePlay for additional unpaid replay after the rewarded target.
+  details_diff: |
+    ~ task completion behavior changed for recurring Program materializations
+    ~ program.create/program.update schedule intent now enforces taskType↔days
+    ~ tool schemas changed: program_create, program_get, program_getAssignment, program_list,
+      task_describe, task_list, task_update (shared cadence descriptions)
+
+- version: 2026.08.07-9
+  surface: tool
+  change: >-
+    task_update now publishes a compact, non-duplicative result schema during
+    tools/list discovery while retaining the canonical reward-policy and free-play
+    fields. The Task authoring guide now points reviewed callers at the returned
+    nextSteps[0].input tool-call payload.
+  action: none
+  agent_guidance: >-
+    Keep handling refused, ready, review_required, no_change, and updated
+    outcomes exactly as before. Execute reviewed and stale-preview recovery calls
+    using nextSteps[0].tool with nextSteps[0].input. Inspect candidate, readback,
+    warnings, effects, issues, and currentPreview when those fields are present.
+  details_diff: |
+    ~ tool changed: task_update (compact discovery-only output projection; runtime contract unchanged)
+    ~ resource changed: task authoring guide (reviewed-call field name corrected)
+
+- version: 2026.08.07-8
+  surface: tool
+  change: >-
+    task_update refusals now return one executable aggregate repair for a
+    compound retired-shape request. The authoring guide includes the complete
+    direct-edit, reviewed stale-preview, and compound-repair traces.
+  action: update_calls
+  agent_guidance: >-
+    Apply every listed repair through the single aggregate next call. Remove
+    immutable fields instead of moving them under mergeFrom. When an acknowledged
+    preview is stale, review the replacement preview and use its corrected call
+    with a new Idempotency-Key.
+  details_diff: |
+    ~ tool changed: task_update (aggregate executable repair guidance)
+    ~ resource changed: task authoring guide (review, stale-preview, and compound-invalid traces)
+
+- version: 2026.08.07-7
+  surface: tool
+  change: >-
+    task_update now uses one strict create-derived merge contract and one
+    transactional writer. It accepts taskId plus mergeFrom and optional dry-run,
+    preview-hash, and warning-acknowledgement controls. It no longer accepts the
+    retired top-level patch fields or changes Task identity, assignment, run mode,
+    task type, Canvas identity, activity verification, or progress settings.
+  action: update_calls
+  agent_guidance: >-
+    Put authored changes under mergeFrom using the task_create field names. Call
+    safe edits directly. Use dryRun when you want a preview or expect reward-policy
+    review, then follow nextSteps[0] exactly. Already-minted rewards stay frozen.
+    If a preview is stale, use the returned replacement call with a new
+    Idempotency-Key. Use task_pause or task_resume for lifecycle changes.
+  details_diff: |
+    ~ tool changed: task_update (strict {taskId,mergeFrom,dryRun?,specHash?,acknowledgedWarnings?} input)
+    ~ tool changed: task_update (transactional result outcomes, warnings, effects, and committed readback)
+    ~ resource changed: task authoring guide (create-derived update merge, review, stale-preview, and immutable identity guidance)
+    ~ resource changed: server instructions (task_update mergeFrom and identity boundary)
+
+- version: 2026.08.07-6
+  surface: tool
+  change: >-
+    Authenticated ChatGPT catalogs no longer advertise the compatibility-only
+    family_select_context tool. General OAuth clients retain that door, and
+    direct calls still run the existing scope and family checks. The retired
+    project_get and project_list tools are no longer registered or taught in
+    server instructions; internal Canvas project persistence is unchanged.
+  action: update_calls
+  agent_guidance: >-
+    In ChatGPT, use the family already bound to the connection and begin with
+    family_query_overview. If the connection is linked to multiple families,
+    finish family selection outside the MCP call before retrying; do not invent
+    or call family_select_context. General MCP clients may keep using the
+    compatibility selector while it remains listed. Use Canvas, Skill, and Task
+    authoring instead of project_get or project_list.
+  details_diff: |
+    - tools removed: project_get, project_list
+    ~ tool availability changed: family_select_context (general clients only)
+    ~ server instructions changed: Project browsing and internal routing claims removed
+
+- version: 2026.08.07-5
+  surface: behavior
+  change: >-
+    Canvas grading is now documented and reported wherever it is decided. The
+    Task authoring guide describes the pass / finish / attempt rule, its
+    passThreshold, and what the server picks when you omit the rule.
+    program_create persists an authored canvas grading rule and now returns a
+    grading-defaulted-from-canvas hint when the server picks the rule for you;
+    task_create returns no hints and instead echoes the applied rule in
+    canvasSpec.grading. Adopting a marketplace listing now derives a canvas's
+    completion capability from the adopted content instead of the publisher's
+    declared value, so the grading default matches what the canvas really emits.
+  action: none
+  agent_guidance: >-
+    Read sprout://task/authoring-guide before setting canvasSpec.grading, and set
+    it deliberately whenever the Task pays gems: attempt is satisfied by opening
+    the Canvas, finish needs a terminal signal, pass needs a score at
+    passThreshold. When you omit it, read back the rule that was applied rather
+    than assuming the one you sent. task_create does NOT return hints — its
+    response echoes the applied rule in canvasSpec.grading, and that echo is the
+    answer. program_create does return a grading-defaulted-from-canvas hint, one
+    per plan task that defaulted, with the task's clientId in details. Never tell
+    a Canvas to call sprout.complete() from an error handler — a Canvas that
+    failed to load has not been played, and completing pays for nothing.
+  details_diff: |
+    ~ tool changed: program_create (adds optional hints)
+    ~ resource changed: sprout://task/authoring-guide (canvas grading section)
+    ~ resource changed: sprout://canvas/sdk (error-handling guidance)
+
+- version: 2026.08.07-4
+  surface: resource
+  change: >-
+    The server instruction summary for off-server loops and runner truth is now
+    shorter while preserving the lifecycle and lease contract introduced in
+    2026.08.07-2 and 2026.08.07-3. The contract lock was regenerated after the
+    canonical Program assignment work landed on main; no tool input, output,
+    annotation, or availability changed in this entry.
+  action: none
+  agent_guidance: >-
+    Keep the same call sequence: register on wake, use loop_listDue as the
+    authenticated check-in, claim before execution, and treat loop_resume as a
+    lifecycle change rather than an immediate run.
+  details_diff: |
+    ~ resource changed: server instructions (compact runner/loop summary; behavior unchanged)
+
+- version: 2026.08.07-3
+  surface: tool
+  change: >-
+    skill_invoke now truthfully advertises its lease-backed runner-presence update
+    as a non-destructive operational write. A loop render issues execution guidance
+    only when the current lease holder is active and belongs to both the selected
+    family and caller grant. loop_checkIn now family-scopes lease renewals and
+    commits a successful renewal with its presence update atomically.
+  action: update_calls
+  agent_guidance: >-
+    Do not call skill_invoke speculatively as a read-only probe. For claimed loop
+    work, pass the exact current leaseId; a valid proof refreshes that runner's
+    last-known activity. If the lease holder is paused, foreign-family, expired,
+    or otherwise unauthorized, the recipe may still render but its instructions
+    remain claim-first/read-only. Treat a loop_checkIn renewal refusal as proof
+    that no requested lease was extended.
+  details_diff: |
+    ~ tool changed: skill_invoke (non-destructive operational write; grant + family + lifecycle execution authority)
+    ~ tool changed: loop_checkIn (family-scoped renewal and atomic presence commit)
+
+- version: 2026.08.07-2
+  surface: tool
+  change: >-
+    Runner and loop tools now describe and enforce the same lifecycle contract.
+    Runner ids are grant-bound receipts within one family, presence is explicitly
+    last-known activity, loop_listDue is an operational check-in, and authenticated
+    loop actions refresh presence. loop_promoteFeedback is no longer advertised to
+    ChatGPT. loop_resume only changes lifecycle state; it does not execute a run.
+  action: update_calls
+  agent_guidance: >-
+    Re-register the same family-specific runner handle on every wake, then call
+    loop_listDue and loop_claim. Treat lastKnownPresence as a recovery hint, not
+    proof that a process is reachable. Render claimed work with skill_invoke using
+    both loopId and the current leaseId, and close it with loop_submitResult.
+    Schedule an immediate retry separately after loop_resume when needed.
+  details_diff: |
+    ~ tools changed: runner_register, runner_list, runner_status (grant/family receipt and last-known presence semantics)
+    ~ tools changed: loop_listDue, loop_claim, loop_checkIn, loop_bind, loop_submitResult (authenticated actions refresh presence)
+    ~ tool changed: skill_invoke (current lease-backed loop render refreshes presence)
+    ~ tool changed: loop_resume (clarifies lifecycle-only behavior)
+    ~ tool availability changed: loop_promoteFeedback (general clients only)
+
+- version: 2026.08.07-1
+  surface: tool
+  change: >-
+    marketplace_submit is now the final-submit step for an already-authored
+    Marketplace draft. It accepts only draftId and specHash, rechecks the stored
+    draft and preview bytes, and reports whether the listing published, entered
+    review, stayed blocked or stale, was rejected, or failed retryably.
+  action: update_calls
+  agent_guidance: >-
+    Finish authoring with marketplace_get_draft and marketplace_update_draft.
+    When the draft is ready, call marketplace_submit with that draftId and its
+    latest specHash plus one stable Idempotency-Key. Reuse the same key only for
+    an exact retry. Treat submitted_for_review as pending review, not publication;
+    follow every returned issue and read the draft again before a new submit.
+  details_diff: |
+    + tool advertised: marketplace_submit
+    ~ tool changed: marketplace_submit (canonical final submit replaces hidden draft/update alias)
+
+- version: 2026.08.06-12
+  surface: tool
+  change: >-
+    Marketplace preview authoring now works directly with ChatGPT image
+    attachments. Preview writes are revision-bound, return the complete refreshed
+    draft, and have a separate collection verb for exact reorder and remove
+    operations. HTTP-capable clients can keep using the signed-upload mode.
+  action: update_calls
+  agent_guidance: >-
+    Read marketplace_get_draft first and pass its revision as expectedRevision.
+    In ChatGPT, call marketplace_prepare_preview_upload with the top-level file;
+    do not fetch its download URL or PUT to Supabase. Use
+    marketplace_update_preview_assets to reorder every current preview id exactly
+    once or remove one preview. On a stale result, use the returned draft and
+    reapply the intended change.
+  details_diff: |
+    ~ tool changed: marketplace_prepare_preview_upload (direct file mode, revision guard, refreshed draft)
+    + tool added: marketplace_update_preview_assets
+
+- version: 2026.08.06-11
+  surface: tool
+  change: >-
+    Gem transactions can now carry a refund for a screen-time unlock the child's
+    device never applied. A refunded unlock appears as an additive entry keyed to
+    the original debit, so a balance that goes back up is legible rather than
+    unexplained. Existing transaction shapes are unchanged; only the set of
+    possible entries widens.
+  action: none
+  agent_guidance: >-
+    When reporting a child's gem history, a positive screen-time entry is a
+    refund, not a spend: the command it paid for never reached the device. Do not
+    describe it as earning. It is bounded by the original debit and written at
+    most once per command, so it will never appear twice for the same unlock.
+
+- version: 2026.08.06-10
+  surface: tool
+  change: >-
+    Marketplace draft authoring now has separate create, get, and update tools.
+    The update tool uses create-derived mergeFrom fields, supports dry-run, and
+    binds a commit to the returned specHash and revision. Draft reads return
+    complete resumable state without exposing package or Canvas content. The
+    former marketplace_submit action envelope remains callable for one contract
+    version but is no longer advertised in tools/list.
+  action: update_calls
+  agent_guidance: >-
+    Start with marketplace_create_draft, then use marketplace_get_draft whenever
+    you need current server state. Dry-run marketplace_update_draft with the
+    desired mergeFrom, repair every validation issue, and commit the same edit
+    with the returned specHash and expectedRevision. Use different
+    Idempotency-Keys for preview and commit because their payloads differ. An
+    incomplete draft may be saved; draft.submissionEligible says whether it is
+    ready for the later final-submit step. Do not start new work with the hidden
+    marketplace_submit compatibility alias.
+  details_diff: |
+    + tool added: marketplace_create_draft
+    + tool added: marketplace_get_draft
+    + tool added: marketplace_update_draft
+    - tool hidden from discovery: marketplace_submit (one-version compatibility only)
+    ~ tool changed: marketplace_submit_preview (guidance points to explicit draft doors)
+    ~ tool changed: marketplace_prepare_preview_upload (guidance points to create/get/update)
+    ~ tool changed: marketplace_submission_status (lifecycle reader separated from draft authoring)
+
+- version: 2026.08.06-9
+  surface: tool
+  change: >-
+    The complete diagnostics tool family is now advertised only when the
+    diagnostics_enabled deployment flag is active. Flag-off, resolver-error,
+    and pre-auth catalogs omit every diagnostics tool. Existing scope
+    filtering and direct-call handler gates remain authoritative.
+  action: none
+  agent_guidance: >-
+    Treat tools/list as the current availability authority. Use diagnostics
+    tools only when they are listed. If deployment availability changes during
+    the session, list tools again or reconnect before planning the next step.
+  details_diff: |
+    ~ tool changed: diagnostics_assign (diagnostics_enabled discovery gate)
+    ~ tool changed: diagnostics_get (diagnostics_enabled discovery gate)
+    ~ tool changed: diagnostics_list (diagnostics_enabled discovery gate)
+    ~ tool changed: diagnostics_merge (diagnostics_enabled discovery gate)
+    ~ tool changed: diagnostics_prepare_upload (diagnostics_enabled discovery gate)
+    ~ tool changed: diagnostics_promote (diagnostics_enabled discovery gate)
+    ~ tool changed: diagnostics_report (diagnostics_enabled discovery gate)
+    ~ tool changed: diagnostics_set_severity (diagnostics_enabled discovery gate)
+    ~ tool changed: diagnostics_set_status (diagnostics_enabled discovery gate)
+
+- version: 2026.08.06-8
+  surface: resource
+  change: >-
+    Every static doc resource is now also readable over plain, unauthenticated
+    HTTPS on this server. GET /guides indexes what is published, naming each
+    doc's MCP URI and its URL; a doc's path is its URI minus the scheme, so
+    sprout://task/authoring-guide serves at /guides/task/authoring-guide.md.
+    Markdown guides are served raw and sprout://changelog is served as JSON,
+    byte-identical to what resources/read returns because both come from the
+    same registry in the same process. Responses carry the contract version,
+    the serving revision, and an ETag. The server instructions and the RFC
+    9728 protected-resource document point at the index. The guide namespace
+    is normalized to domain/doc in the same change — three resources renamed:
+    sprout://guides/loop-authoring is now sprout://loop/authoring-guide,
+    sprout://guides/loop-runner is now sprout://loop/runner-guide, and
+    sprout://resource/wait-guide is now sprout://mcp/wait-guide (catalog name
+    mcp-wait-guide). Old URIs keep resolving in resources/read for a
+    compatibility window but no longer appear in resources/list. One new
+    resource ships too — sprout://canvas/design, where to read the Sprout kid
+    design language: a pointer to the maintained doc set plus how to install
+    those docs locally with the Sprout agent plugin. No tool or scope changed.
+  action: update_calls
+  agent_guidance: >-
+    Use the new URIs — loop/authoring-guide, loop/runner-guide, mcp/wait-guide
+    — when reading or citing these guides; the old spellings still read for
+    now but are absent from the catalog and will eventually stop resolving.
+    Read sprout://canvas/design alongside sprout://canvas/sdk before authoring
+    canvas HTML: the SDK covers behavior, this covers appearance, and skipping
+    it is the usual reason a canvas looks wrong or trips the analyzer. If your
+    client cannot call resources/read, fetch the guides over HTTPS instead of
+    proceeding without them — start at GET /guides rather than guessing a
+    path. Each deployment publishes its own contract, so read from the server
+    you are connected to rather than a copy elsewhere.
+  details_diff: |
+    + resource added: sprout://canvas/design (canvas-design-language)
+    + public route added: GET /guides (index)
+    + public route added: GET /guides/* (one doc per static resource)
+    ~ resource renamed: sprout://guides/loop-authoring -> sprout://loop/authoring-guide (old URI reads for a window)
+    ~ resource renamed: sprout://guides/loop-runner -> sprout://loop/runner-guide (old URI reads for a window)
+    ~ resource renamed: sprout://resource/wait-guide -> sprout://mcp/wait-guide (catalog name mcp-wait-guide; old URI reads for a window)
+    ~ instructions changed: names /guides as the fallback when a client
+      cannot call resources/read; guide pointers use the new URIs
+    ~ well-known changed: oauth-protected-resource gains resource_documentation
+
+- version: 2026.08.06-7
+  surface: tool
+  change: >-
+    The complete board tool family is now advertised only after Sprout can
+    resolve an authenticated family whose family_boards feature is active.
+    Flag-off, unresolved-family, resolver-error, and pre-auth catalogs omit
+    every board tool. Direct calls keep their existing handler-level checks.
+  action: none
+  agent_guidance: >-
+    Treat tools/list as the current availability authority. Use board tools
+    only when they are listed. If a parent changes Board availability during
+    the session, list tools again or reconnect before planning the next step.
+  details_diff: |
+    ~ tool changed: board_add_canvas (family_boards discovery gate)
+    ~ tool changed: board_create (family_boards discovery gate)
+    ~ tool changed: board_data (family_boards discovery gate)
+    ~ tool changed: board_get (family_boards discovery gate)
+    ~ tool changed: board_list (family_boards discovery gate)
+    ~ tool changed: board_post (family_boards discovery gate)
+    ~ tool changed: board_remove_canvas (family_boards discovery gate)
+    ~ server instructions changed: Board guidance now applies only when board.* is listed
+
+- version: 2026.08.06-6
+  surface: instructions
+  change: >-
+    The server's ChatGPT attachment and retry guidance is now shorter while
+    preserving the same behavior. ChatGPT still passes attachments through a
+    tool's advertised file field and leaves signed uploads to HTTP-capable
+    clients. Retry decisions still follow typed error codes.
+  action: none
+  agent_guidance: >-
+    No call shape changed. For tools advertising openai/fileParams, pass the
+    attachment in the named field; do not fetch download_url or PUT to a signed
+    URL from ChatGPT. Fix BAD_INPUT or INVALID_INPUT, stop on permission or
+    visibility errors, and retry INTERNAL_ERROR with backoff.
+  details_diff: |
+    ~ server instructions changed: equivalent ChatGPT-file and retry guidance in a smaller prompt budget
+
+- version: 2026.08.06-5
+  surface: tool
+  change: >-
+    reward_prepare_photo_upload can now ingest one ChatGPT attachment through
+    its top-level file field. Sprout downloads and validates the image, stores
+    it in the existing family-scoped pending-photo path, and returns the same
+    uploadId used by reward_create and reward_update. The existing
+    contentType-plus-byteSize signed-upload form remains available. Results now
+    say whether bytes are stored and whether the caller should upload first or
+    attach immediately.
+  action: update_calls
+  agent_guidance: >-
+    In ChatGPT, pass one image in the top-level file field. Do not fetch its
+    download_url yourself and do not PUT to Supabase. When nextAction is attach,
+    pass uploadId to reward_create or reward_update. Clients that can perform a
+    raw HTTPS PUT may continue to send contentType and byteSize; when nextAction
+    is put_then_attach, upload through signedUrl before attaching the uploadId.
+    Never combine file with the signed-upload fields.
+  details_diff: |
+    ~ tool changed: reward_prepare_photo_upload (ChatGPT file ingestion, XOR input modes, discriminated transfer result)
+    ~ server instructions changed: top-level ChatGPT file parameters are Sprout-downloaded and signed PUT URLs are raw-HTTP only
+
+- version: 2026.08.06-4
+  surface: tool
+  change: >-
+    Reward photo uploads now have durable cleanup ownership when the
+    pending-photo lifecycle is enabled. A signed URL's five-minute expiry ends
+    only the PUT capability; it does not delete stored bytes or expire the
+    upload handle. Reward create and update coordinate consumption with the
+    cleanup worker, so a handle being consumed or cleaned refuses before
+    canonical photo storage work.
+  action: update_calls
+  agent_guidance: >-
+    If a signed PUT does not finish before expiry, call
+    reward_prepare_photo_upload again, upload through the new URL, and attach
+    the uploadId from the latest successful response. On PENDING_BUSY, retry
+    the same idempotent Reward call and inspect the Reward if the earlier
+    outcome was ambiguous. On PENDING_NOT_FOUND, prepare and upload a new photo
+    instead of reusing the old handle.
+  details_diff: |
+    ~ tool changed: reward_prepare_photo_upload (capability-expiry and latest-handle guidance)
+    ~ tools changed: reward_create, reward_update (durable cleanup ownership and typed consume/cleanup recovery)
+
+- version: 2026.08.06-3
+  surface: tool
+  change: >-
+    quest_create_extra is the canonical fixed-policy command for one additional
+    rewarded play. It accepts only taskId and childId, requires an
+    Idempotency-Key, and reads the live Task's extras cap and completion
+    rewardRule. Its typed result reports rewarded plays remaining, free-play
+    availability, and recovery steps. The legacy quest_create tool remains a
+    compatibility adapter whose reward is only an exact-policy assertion.
+  action: update_calls
+  agent_guidance: >-
+    Use quest_create_extra for new calls. Retry unchanged intent with the same
+    Idempotency-Key; use a new key only when the family deliberately wants
+    another rewarded play. Never send reward, budget, mode, or generic any
+    fields. When the cap is exhausted, follow the returned nextSteps: use free
+    play when available or ask the parent to increase policy.extras.maxPerDay.
+  details_diff: |
+    + tool added: quest_create_extra (fixed Task-policy reward, durable replay, typed capacity recovery)
+    ~ tool changed: quest_create (legacy reward is an equality assertion, not caller-selected pricing)
+    ~ resource changed: sprout://task/authoring-guide (canonical extra-play flow and policy ownership)
+
+- version: 2026.08.06-2
+  surface: tool
+  change: >-
+    task_create now refuses a new retained Canvas assignment when childId,
+    canvasId, and the server-validated setup hash match an existing Task.
+    Existing twins remain grandfathered. Paused Tasks keep the signature;
+    tombstoned Tasks release it for replacement.
+  action: update_calls
+  agent_guidance: >-
+    A new Idempotency-Key does not bypass Canvas assignment convergence. When
+    TASK_CANVAS_ALREADY_ASSIGNED returns the retained taskId, add plays by
+    raising policy.rewardedCompletions or enabling policy.freePlay, change the
+    Canvas setup or Canvas for a separate assignment, or update the existing
+    schedule. Tombstone the retained Task before creating a replacement; its
+    old key still replays the original response.
+  details_diff: |
+    ~ tool changed: task_create (exact retained child/Canvas/setup twins refuse with repair directions)
+    ~ resource changed: sprout://task/authoring-guide (new-key, pause, and tombstone convergence semantics)
+
+- version: 2026.08.06-1
+  surface: tool
+  change: >-
+    marketplace_get_adoption is now the discoverable name for reading one
+    family-owned adoption or fork setup record. The previous dotted spelling,
+    marketplace.adoption_get, remains callable for one compatibility window but
+    is hidden from tools/list. marketplace_fork now requires an Idempotency-Key.
+    A retry with the same key and arguments returns the original private graph,
+    even after transport replay data expires. Reusing the key with different
+    arguments returns IDEMPOTENCY_CONFLICT. If the original private graph was
+    removed, the old key returns MARKETPLACE_FORK_RESULT_REMOVED instead of
+    creating a replacement.
+  action: update_calls
+  agent_guidance: >-
+    Call marketplace_get_adoption with an installId when setup state needs to
+    be read again. For marketplace_fork, keep the same Idempotency-Key only for
+    an unchanged retry. Use a new key when the family deliberately wants a
+    second editable remix. If a prior fork result was removed, start a new fork
+    with a new key only after confirming that intent with the user.
+  details_diff: |
+    ~ tool renamed: marketplace_adoption_get -> marketplace_get_adoption (old dotted spelling remains a hidden call alias)
+    ~ tool changed: marketplace_fork (required key, durable same-operation convergence, removed-result tombstone)
+    + error added: IDEMPOTENCY_KEY_REQUIRED
+    + error added: MARKETPLACE_FORK_RESULT_REMOVED
+
+- version: 2026.08.05-13
+  surface: tool
+  change: >-
+    task_list and task_describe now make programAssignment a structurally
+    required discriminator on their retained legacy Program projection. The
+    generated contract no longer presents Program-only progressSpec or Canvas
+    activity-verification fields as possible standalone Task fields. The
+    canonical standalone projection introduced in 2026.08.05-12 is unchanged.
+  action: update_calls
+  agent_guidance: >-
+    Treat a legacy read branch as a Program Task only when programAssignment is
+    present. For standalone Tasks, continue using the canonical childId,
+    policy, mode-specific spec, assignmentState, and availability fields. Do
+    not send or expect progressSpec or activityVerification on a standalone
+    Task.
+  details_diff: |
+    ~ tool changed: task_list (legacy Program arm structurally requires programAssignment)
+    ~ tool changed: task_describe (legacy Program arm structurally requires programAssignment)
+
+- version: 2026.08.05-12
+  surface: tool
+  change: >-
+    task_create now creates one standalone Task for one child through a
+    singular canonical contract. It replaces childIds with childId, requires
+    displayable instructions for self-check Tasks, keeps conversation and
+    Canvas settings in their matching specs, and moves rewarded completion
+    count, completion rewards, free play, and fixed extras into policy. Canvas
+    assignment values come from the selected Canvas manifest and successful
+    writes return server-derived setup and canvasDataHash receipts. dryRun
+    previews make no writes and return the normalized spec, warnings, and a
+    specHash used to acknowledge review-required warnings. Invalid requests
+    return all independent issues with field paths, reasons, and repair steps.
+    Standalone task_list and task_describe now use the same canonical Task
+    projection; describe adds current rewarded plays remaining, free-play
+    availability, and paused-state recovery. Direct reads no longer expose
+    progressSpec, activity-verification authoring, or live-run state. Program
+    rows and task_update keep their released contracts for their separate
+    migrations.
+  action: update_calls
+  agent_guidance: >-
+    Call task_create once per child with childId and a distinct Idempotency-Key.
+    Choose exactly one runMode and its matching fields. Use policy.rewards with
+    a completion trigger, policy.rewardedCompletions for rewarded capacity,
+    and policy.freePlay for unrewarded play after that capacity is exhausted.
+    Put only manifest-requested assignment values in canvasSpec.setup; never
+    send canvasDataHash or a setup receipt. Preview with dryRun true. If the
+    preview requires review, commit the same authored spec with its specHash
+    and exact warning codes. Reuse a key only for an unchanged commit retry.
+    Use a new key for a changed intent, a sibling Task, or a replacement after
+    tombstoning. Read task_list or task_describe for settings and availability;
+    use task_runs_list with taskId for live Canvas-run state. Do not copy this
+    shape into task_update or Program calls yet.
+  details_diff: |
+    ~ tool changed: task_create (singular childId, canonical mode specs and policy, preview/review, Canvas receipts, directional validation)
+    ~ tool changed: task_list (canonical standalone Task projection; Program projection retained)
+    ~ tool changed: task_describe (canonical standalone Task plus availability; Program projection retained)
+    ~ instructions changed: direct Task run state moves from task_describe to task_runs_list
 - version: 2026.08.05-11
   surface: tool
   change: >-
