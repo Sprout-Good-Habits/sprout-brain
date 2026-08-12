@@ -31,6 +31,25 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.12-6
+  surface: tool
+  change: >-
+    marketplace_review_canvas_authoring now reviews and repairs one opaque
+    AUTHORING_EDITOR target. Its confirmation is bound to the exact current
+    artifact version, execution fingerprint, review profile, and repair key.
+  action: update_calls
+  agent_guidance: >-
+    Discover the target with marketplace_canvas_approval_readiness. Call
+    marketplace_review_canvas_authoring without approval, show the returned
+    review to the parent, then resend the returned approvalBinding unchanged
+    with the same Idempotency-Key. Navigate to editorPath only after REPAIRED.
+    If confirmation is stale, preflight again and ask the parent to review the
+    new warning. Do not approve automatically.
+  details_diff: |
+    + tool added: marketplace_review_canvas_authoring
+    + output field added: editorPath (internal /create route or /library)
+    ~ AUTHORING_EDITOR targets now have a dedicated approval repair tool
+
 - version: 2026.08.12-5
   surface: tool
   change: >-
