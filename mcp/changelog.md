@@ -31,6 +31,40 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.12-5
+  surface: tool
+  change: >-
+    marketplace_canvas_approval_readiness now isolates a damaged or missing
+    immutable marketplace binding as the non-actionable reason
+    MARKETPLACE_INSTALL_BINDING_STALE instead of aborting the whole readiness
+    page.
+  action: update_calls
+  agent_guidance: >-
+    Keep paginating and present any later actionable review targets. A
+    MARKETPLACE_INSTALL_BINDING_STALE issue has no repair key because its
+    published-to-private provenance cannot be proven safely; direct the parent
+    to remove and reinstall that marketplace item rather than inventing an
+    approval binding.
+  details_diff: |
+    ~ tool changed: marketplace_canvas_approval_readiness (nonActionableIssues reason enum)
+
+- version: 2026.08.12-4
+  surface: tool
+  change: >-
+    marketplace_adopt and marketplace_fork now release a no-write stale Canvas
+    confirmation so the same Idempotency-Key can restart preflight. An exact
+    parent confirmation remains valid if family enrollment changes after
+    preflight and still writes the required approval receipts.
+  action: update_calls
+  agent_guidance: >-
+    If Canvas confirmation returns MARKETPLACE_VERSION_STALE, remove the old
+    approval and rerun preflight with the same Idempotency-Key. Present the new
+    review before confirming again. Do not switch keys unless the parent intends
+    a separate adoption or remix.
+  details_diff: |
+    ~ tool changed: marketplace_adopt (description, stale-result idempotency release)
+    ~ tool changed: marketplace_fork (description, stale-result idempotency release)
+
 - version: 2026.08.12-3
   surface: tool
   change: >-
