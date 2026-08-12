@@ -31,6 +31,21 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.12-3
+  surface: tool
+  change: >-
+    marketplace_adopt now treats Canvas approval preflight and confirmation as
+    one idempotent operation: its no-write APPROVAL_REQUIRED result releases
+    the reservation so confirmation can reuse the same Idempotency-Key.
+  action: update_calls
+  agent_guidance: >-
+    For Canvas adoption, keep one Idempotency-Key from the first call through
+    explicit parent confirmation. On APPROVAL_REQUIRED, add the exact returned
+    approval binding and resend with that same key. After commit, replay only
+    the confirmed input unchanged with the same key.
+  details_diff: |
+    ~ tool changed: marketplace_adopt (description, idempotency transition)
+
 - version: 2026.08.12-2
   surface: tool
   change: >-
