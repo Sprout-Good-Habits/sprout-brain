@@ -31,6 +31,133 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.12-2
+  surface: tool
+  change: >-
+    marketplace_adopt now distinguishes its no-write APPROVAL_REQUIRED result
+    from committed adoption output and teaches the active-parent confirmation
+    binding. marketplace_canvas_approval_readiness and
+    marketplace_review_canvas_install now teach bounded pagination, target
+    routing, explicit approval, and stale-key recovery.
+  action: update_calls
+  agent_guidance: >-
+    For Canvas adoption, preflight without approval, show the returned review to
+    an active parent, and confirm only after explicit approval using the echoed
+    listingVersionId, packageHash, profileHash, and reviewVocabularyVersion.
+    The same binding repairs an already-copied install. For readiness, paginate
+    even across empty pages; send only MARKETPLACE_INSTALL_REVIEW targets with
+    their cursor to marketplace_review_canvas_install, preflight before
+    confirmation, and rerun readiness after STALE_REPAIR_KEY. AUTHORING_EDITOR
+    and nonActionableIssues have no MCP repair locator; ask the parent to use
+    the normal Sprout authoring/library UI.
+  details_diff: |
+    ~ tool changed: marketplace_adopt (description)
+    ~ tool changed: marketplace_canvas_approval_readiness (description)
+    ~ tool changed: marketplace_review_canvas_install (description)
+
+- version: 2026.08.11-6
+  surface: tool
+  change: >-
+    marketplace_fork now states the complete Canvas approval retry contract:
+    preflight without approval, confirmation with the returned approval binding
+    and the same Idempotency-Key, then exact replay of that confirmed input.
+  action: update_calls
+  agent_guidance: >-
+    For a Canvas fork, first call without approval. On APPROVAL_REQUIRED, add
+    approval.status APPROVED and the returned listingVersionId, packageHash,
+    profileHash, and reviewVocabularyVersion, then resend with the same
+    Idempotency-Key. After the fork commits, recover it only by replaying that
+    confirmed input unchanged with the same key.
+  details_diff: |
+    ~ tool changed: marketplace_fork (description)
+
+- version: 2026.08.11-5
+  surface: tool
+  change: >-
+    Every entry in family_query_overview's parents list now carries a required
+    memberType field. The value is one of owner, co_parent, or villager. The
+    list has always included every adult on the family, not only the parents;
+    the field says which is which, so a trusted helper is no longer
+    indistinguishable from a parent.
+  action: none
+  agent_guidance: >-
+    No call changes are required. When you name or address the adults on a
+    family, read memberType rather than assuming every entry is a parent. The
+    list is the family's own grown-ups only.
+  details_diff: |
+    + family_query_overview output: parents[].memberType (required; enum owner,
+      co_parent, villager, sprout_team)
+    ~ family_query_overview description: documents the parents[].memberType
+      vocabulary
+
+- version: 2026.08.11-4
+  surface: tool
+  change: >-
+    marketplace_canvas_approval_readiness now separates work by the action that
+    can actually resolve it. Publication-identical installs remain marketplace
+    review targets. Parent-edited linked Canvases appear as AUTHORING_EDITOR
+    targets. Incomplete install closures appear in nonActionableIssues without
+    a repair key because approval cannot restore a missing copy.
+  action: update_calls
+  agent_guidance: >-
+    Send only MARKETPLACE_INSTALL_REVIEW targets to
+    marketplace_review_canvas_install. This MCP surface does not expose a
+    locator for AUTHORING_EDITOR targets or incomplete installs; ask the parent
+    to repair, recreate, reinstall, or remove them in the normal Sprout UI. Do
+    not pass those opaque keys to the marketplace review tool.
+  details_diff: |
+    ~ tool changed: marketplace_canvas_approval_readiness (outputSchema)
+    + output field added: nonActionableIssues
+    + non-actionable reason added: MARKETPLACE_INSTALL_CLOSURE_INCOMPLETE
+
+- version: 2026.08.11-3
+  surface: tool
+  change: >-
+    marketplace_adopt and marketplace_fork can now return APPROVAL_REQUIRED
+    before copying a Canvas package. The review envelope contains the exact
+    listing version, package hash, and bounded capability profile a parent must
+    accept; confirmation echoes the profile hash and review vocabulary too.
+    Two new parent-only tools expose pre-enrollment repair work:
+    marketplace_canvas_approval_readiness lists bounded opaque repair targets,
+    and marketplace_review_canvas_install reviews or repairs one unchanged
+    installed marketplace package.
+  action: update_calls
+  agent_guidance: >-
+    Treat APPROVAL_REQUIRED as an intermediate outcome, show its review profile
+    to the parent, and call marketplace_adopt or marketplace_fork again with the
+    returned listingVersionId, packageHash, profileHash, and
+    reviewVocabularyVersion only after explicit approval. For an existing
+    install, discover opaque targets with marketplace_canvas_approval_readiness,
+    then preflight and confirm each marketplace target with
+    marketplace_review_canvas_install. Never invent or retain private Canvas
+    bytes from these content-free envelopes.
+  details_diff: |
+    ~ tool changed: marketplace_adopt (inputSchema, outputSchema)
+    + output variant added: marketplace_adopt APPROVAL_REQUIRED
+    ~ tool changed: marketplace_fork (inputSchema, outputSchema)
+    + output variant added: marketplace_fork APPROVAL_REQUIRED
+    + tool added: marketplace_canvas_approval_readiness
+    + tool added: marketplace_review_canvas_install
+
+- version: 2026.08.11-2
+  surface: tool
+  change: >-
+    Canvas create and update dry runs now return a deterministic execution
+    fingerprint, normalized review summary and profile, predicted approval
+    disposition, and the restricted authoring preview host mode. These fields
+    describe the exact executable closure that the server reconstructed; they
+    do not grant approval or authorize a later commit.
+  action: none
+  agent_guidance: >-
+    Use the new fields to explain whether a proposed Canvas is unchanged,
+    covered by current authority, eligible for legacy continuity, or expected
+    to require approval. Always commit with the intended source bytes; never
+    treat dry-run evidence as an approval receipt because the server recomputes
+    it at commit time.
+  details_diff: |
+    + canvas_create dry-run fields: executionFingerprint, reviewSummary, reviewProfile, approvalDisposition, previewHostMode
+    + canvas_update dry-run fields: executionFingerprint, reviewSummary, reviewProfile, approvalDisposition, previewHostMode
+
 - version: 2026.08.11-1
   surface: tool
   change: >-
