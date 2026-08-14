@@ -31,6 +31,31 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.14-1
+  surface: tool
+  change: >-
+    Canvas review vocabulary moved to version 2: canvases may now declare a
+    server-proxied web fetch (the WEB_FETCH disclosure, backing sprout.net.fetch
+    against a platform allowlist that starts with Open Library), and the
+    disclosure vocabulary a review summary can carry grew accordingly. A
+    client-authored adoption approval must echo reviewVocabularyVersion 2 —
+    echoing 1 is refused, because an approval must attest to the vocabulary the
+    parent actually reviewed under. Stored evidence written under version 1
+    stays complete and readable; nothing about durable receipts changes.
+  action: update_calls
+  agent_guidance: >-
+    When you build a marketplace.adopt / marketplace.fork approval object, copy
+    reviewVocabularyVersion from the review summary you just received rather
+    than hardcoding it — the summary always carries the version the review was
+    rendered under, and echoing that value is forward-compatible with future
+    vocabulary bumps. If an adopt call starts refusing on the approval's
+    reviewVocabularyVersion, re-run the review step and rebuild the approval
+    from the fresh summary instead of patching the number.
+  details_diff: |
+    ~ schema changed: marketplace adopt/fork approval reviewVocabularyVersion (echo-pinned to 2)
+    ~ schema changed: review summaries may include the WEB_FETCH disclosure
+    + capability: sprout.net.fetch (consent-gated, allowlist-proxied; server-side)
+
 - version: 2026.08.12-6
   surface: tool
   change: >-
