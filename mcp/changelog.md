@@ -31,6 +31,276 @@ Conventions for this file:
 
 ## Entries
 
+- version: 2026.08.16-1
+  surface: tool
+  change: >-
+    task_prepare_reference_upload's advertised input schema now matches its
+    actual contract: the mode oneOf gained the localBytes branch (operationKey +
+    localBytes, excluding file/mimeType/sizeBytes), and taskId is no longer
+    advertised as required in the two server-ingest branches (file, localBytes)
+    — it was always optional there since taskless authoring shipped. The
+    signed-PUT branch still requires taskId. No runtime validation changed;
+    calls the server accepted before are accepted unchanged.
+  action: refetch_tools
+  agent_guidance: >-
+    If your cached schema rejected localBytes calls (no oneOf branch admitted
+    them) or forced a taskId onto a taskless ingest prepare, refetch tools/list
+    — the advertised oneOf now admits exactly what the server accepts. Authoring
+    a new golden_compare task still works taskless: upload references first via
+    file or localBytes with no taskId, then pass the returned assetIds to
+    task_create.
+  details_diff: |
+    + task_prepare_reference_upload input oneOf branch: operationKey + localBytes (excludes file/mimeType/sizeBytes)
+    ~ task_prepare_reference_upload input oneOf file branch: taskId removed from required (optional since SPR-4471)
+    ~ task_prepare_reference_upload input oneOf signed-PUT branch: unchanged fields, now also excludes localBytes
+
+- version: 2026.08.14-2
+  surface: tool
+  change: >-
+    family_query_overview now labels every parents[] entry with a required
+    `role`: owner, co_parent, villager, or concierge. A concierge entry is the
+    Sprout Concierge, Sprout's own support account that a parent can seat in
+    their family, and it is not one of the family's own grown-ups.
+  action: refetch_tools
+  agent_guidance: >-
+    Read `role` on every parents[] entry. A concierge entry has the same reach
+    as a parent in the family, so never assume it can only read. Two things not
+    to do with it: do not address it as one of the family's grown-ups, greet
+    it, or suggest the user talk to it; and never attribute a family member's
+    actions, decisions, or preferences to it. When you tell the user how many
+    grown-ups the family has, count only the entries whose role is owner,
+    co_parent, or villager.
+  details_diff: |
+    + family_query_overview parents[].role (required): owner | co_parent | villager | concierge
+    ~ family_query_overview description: role vocabulary + concierge reach and the two prohibitions
+
+- version: 2026.08.14-1
+  surface: tool
+  change: >-
+    Canvas review vocabulary moved to version 2: canvases may now declare a
+    server-proxied web fetch (the WEB_FETCH disclosure, backing sprout.net.fetch
+    against a platform allowlist that starts with Open Library), and the
+    disclosure vocabulary a review summary can carry grew accordingly. A
+    client-authored adoption approval must echo reviewVocabularyVersion 2 —
+    echoing 1 is refused, because an approval must attest to the vocabulary the
+    parent actually reviewed under. Stored evidence written under version 1
+    stays complete and readable; nothing about durable receipts changes.
+  action: update_calls
+  agent_guidance: >-
+    When you build a marketplace.adopt / marketplace.fork approval object, copy
+    reviewVocabularyVersion from the review summary you just received rather
+    than hardcoding it — the summary always carries the version the review was
+    rendered under, and echoing that value is forward-compatible with future
+    vocabulary bumps. If an adopt call starts refusing on the approval's
+    reviewVocabularyVersion, re-run the review step and rebuild the approval
+    from the fresh summary instead of patching the number.
+  details_diff: |
+    ~ schema changed: marketplace adopt/fork approval reviewVocabularyVersion (echo-pinned to 2)
+    ~ schema changed: review summaries may include the WEB_FETCH disclosure
+    + capability: sprout.net.fetch (consent-gated, allowlist-proxied; server-side)
+
+- version: 2026.08.13-3
+  surface: behavior
+  change: >-
+    screentime_unlock no longer mints an unlock that never ends, and now tells
+    you when the one you minted ends. minutes stays OPTIONAL and nothing about a
+    call that supplies it changes; a call that OMITS it now grants the rest of
+    the child's local day instead of an open-ended unlock with no deadline at
+    all. The response reports both what was minted (minutes) and the instant it
+    ends (unlockUntil, ISO-8601), so an omitted duration comes back fully
+    described rather than as nothing. The per-child minUnlockMinutes floor still
+    applies to a duration you supply and does not apply to the computed one, so
+    a call late at night is honoured rather than rounded up past midnight.
+  action: update_calls
+  agent_guidance: >-
+    Read unlockUntil rather than adding minutes to your own clock. The two
+    disagree in two ordinary cases: a grant issued while time is still running
+    STACKS onto the remainder, and an omitted minutes is coerced to the end of
+    the child's local day. Omitting minutes is safe and is the right call when
+    you genuinely mean "the rest of today" — the server resolves it in the
+    child's own timezone, which is more accurate than anything you can compute.
+    Do not send a very large minutes to approximate an unbounded unlock: there
+    is no unbounded unlock any more, and a large number will be honoured
+    literally and keep the kid's device open past the day. unlockUntil is null
+    when the command minted no window and absent on a refusal.
+  details_diff: |
+    ~ tool changed: screentime_unlock (minutes optional-with-end-of-day default)
+    + screentime_unlock.result.unlockUntil (string | null, optional)
+
+- version: 2026.08.13-2
+  surface: tool
+  change: >-
+    task_prepare_reference_upload no longer requires taskId in the file and
+    localBytes ingest modes, closing the circular dependency 2026.08.13-1
+    shipped with: golden_compare authoring needed reference assetIds from an
+    upload tool that itself demanded an already-existing task, so a family's
+    FIRST photo-proof task could not be authored. A prepare without taskId
+    mints an UNBOUND reference owned by your family; the task_create that
+    lists its assetId adopts it. An unadopted reference expires roughly 24
+    hours after upload. Signed-PUT mode (mimeType + sizeBytes) still requires
+    taskId — its transfer route is task-scoped — and now refuses its absence
+    with a taskId-pathed validation error. Also tightened at authoring, for
+    golden_compare on task_create: references must be parent-uploaded assets
+    (a kid's camera capture is refused as not found), the reference set must
+    fit the runtime byte budget the kid's device can be served, and every
+    selected child needs a compatible registered iOS host — the same check
+    count_me always ran.
+  action: update_calls
+  agent_guidance: >-
+    Authoring a NEW golden_compare task: call task_prepare_reference_upload
+    WITHOUT taskId once per photo (file or localBytes mode), collect each
+    returned assetId, then call task_create with those assetIds in
+    canvasSpec.activityVerification.references — promptly, within the ~24h
+    unadopted-reference window. Only pass taskId when depositing an additional
+    reference for a task that already exists. If task_create refuses with a
+    budget message, use fewer or recompressed reference photos; if it refuses
+    naming a child's device, that child needs a current iOS Sprout app before
+    the task can be assigned.
+  details_diff: |
+    ~ task_prepare_reference_upload.taskId: required -> optional (file/localBytes modes)
+    + unbound references: family-owned, adopted by task_create, ~24h bind-or-expire
+    ~ task_create golden_compare preflight: + reference provenance (upload-lane only)
+    ~ task_create golden_compare preflight: + aggregate reference byte budget
+    ~ task_create golden_compare preflight: + per-child device compatibility
+
+- version: 2026.08.13-1
+  surface: tool
+  change: >-
+    task_create accepts canvasSpec.activityVerification again, for both
+    evaluator families. The 2026-08-05 canonical cutover hid the field and the
+    2026-08-07 task_update cutover refused it, leaving camera-counted and
+    photo-proof tasks unauthorable while their runtimes kept executing. The
+    count_me config is now spelled like golden_compare: activity names the
+    evaluator family and profile names the closed registry member, so the
+    legacy activity:"piano_passage_repetition" | "hand_clap_repetition"
+    spelling is no longer accepted for new tasks. Stored tasks in the legacy
+    shape keep working and are still returned verbatim by task_describe and
+    task_list. task_update refuses the field as CREATE_ONLY_FIELD, and Program
+    templates continue to refuse it entirely.
+  action: update_calls
+  agent_guidance: >-
+    To author a count_me task send canvasSpec.activityVerification with
+    version:"activity_verification_intent_v1", activity:"count_me",
+    profile:"piano_passage_repetition_v1" or "hand_clap_repetition_v1",
+    instruction, and target. For golden_compare send activity:"golden_compare",
+    profile:"golden_compare_v1", instruction, criteria, and references, where
+    every references[].assetId comes from task_prepare_reference_upload
+    followed by task_finalize_reference_upload — never a URL or storage path.
+    Do not send captureMode, audio, unit, checkMode, timed, or any other field
+    the profile derives; the server owns them and rejects them as UNKNOWN_FIELD.
+    An unknown profile is refused, never defaulted. golden_compare references
+    must be distinct and include at least one role:"golden" — both are checked
+    at preview, so those shape errors surface on dryRun instead of only at
+    commit. Preview also runs the family-gate, Canvas-capability, device and
+    reference-asset preflight, but commit re-runs it: those depend on mutable
+    state, so a successful preview is not a guarantee that a later commit
+    lands. On a commit-time refusal, refresh state and preview again rather
+    than retrying the same payload. To change verification on an existing task,
+    create a new task — task_update returns CREATE_ONLY_FIELD with a
+    remove-create-only-field recovery step.
+  details_diff: |
+    + task_create.canvasSpec.activityVerification (count_me | golden_compare)
+    + task_describe/task_list canvasSpec.activityVerification (read, legacy-tolerant)
+    ~ count_me config: activity is now "count_me"; profile carries the registry member
+    ~ task_update canvasSpec.activityVerification: UNSUPPORTED_FIELD -> CREATE_ONLY_FIELD
+
+- version: 2026.08.12-12
+  surface: tool
+  change: >-
+    Marketplace Canvas approval reviews and confirmations now include the
+    immutable listingId as well as listingVersionId and the reviewed hashes.
+    This keeps a parent-approved operation bound to the same listing even when
+    a public slug is renamed, reused, or delisted before recovery.
+  action: update_calls
+  agent_guidance: >-
+    When marketplace_adopt or marketplace_fork returns APPROVAL_REQUIRED, copy
+    review.listingId unchanged into approval.listingId alongside the existing
+    review-bound fields. Never infer listingId from a later slug lookup.
+  details_diff: |
+    + APPROVAL_REQUIRED.review.listingId
+    + approval.listingId (required)
+
+- version: 2026.08.12-11
+  surface: tool
+  change: >-
+    Canvas approval readiness now explains the non-actionable support flow in
+    its live tool description, not only in this changelog.
+  action: update_calls
+  agent_guidance: >-
+    For every nonActionableIssues item, preserve and present its opaque
+    supportReference to the parent or support workflow. Never decode it or
+    substitute a repairKey, and stop automated repair for that item.
+  details_diff: |
+    ~ marketplace_canvas_approval_readiness description: preserve supportReference and stop automated repair
+
+- version: 2026.08.12-10
+  surface: tool
+  change: >-
+    Canvas approval readiness now gives every non-actionable install issue an
+    opaque, family-bound supportReference. The reference identifies the exact
+    damaged copy without exposing its install or listing id.
+  action: update_calls
+  agent_guidance: >-
+    Preserve supportReference when presenting a nonActionableIssue to a parent
+    or support workflow. Do not decode it or substitute a repairKey; the issue
+    is intentionally outside automated approval repair.
+  details_diff: |
+    + marketplace_canvas_approval_readiness nonActionableIssues[].supportReference
+
+- version: 2026.08.12-9
+  surface: tool
+  change: >-
+    Canvas approval readiness now routes AUTHORING_EDITOR repair targets to
+    marketplace_review_canvas_authoring. Only nonActionableIssues require the
+    agent to stop and ask the parent to repair or remove content in Sprout.
+  action: update_calls
+  agent_guidance: >-
+    Send MARKETPLACE_INSTALL_REVIEW targets to
+    marketplace_review_canvas_install and AUTHORING_EDITOR targets to
+    marketplace_review_canvas_authoring, preserving each target's cursor. Stop
+    and escalate through the parent UI only for nonActionableIssues.
+  details_diff: |
+    ~ marketplace_canvas_approval_readiness description: AUTHORING_EDITOR routes to marketplace_review_canvas_authoring
+    ~ stop/escalation guidance now applies only to nonActionableIssues
+
+- version: 2026.08.12-8
+  surface: tool
+  change: >-
+    Canvas marketplace adoption, fork, and installed-package repair now use
+    one exact content-free approval object: listingVersionId, packageHash,
+    profileHash, and reviewVocabularyVersion. Readiness also isolates stale or
+    incomplete install provenance as a non-actionable issue instead of
+    aborting the family's bounded page.
+  action: update_calls
+  agent_guidance: >-
+    Preflight without approval and show the returned review to an active
+    parent. After explicit approval, resend the exact returned binding. Keep
+    one Idempotency-Key through adopt or fork preflight, confirmation, and
+    unchanged replay; a stale no-write confirmation releases that key so you
+    can preflight again. For marketplace_review_canvas_install, use the target
+    and cursor from readiness, then confirm with the exact approval object.
+    AUTHORING_EDITOR and nonActionableIssues are handled in Sprout's parent UI.
+  details_diff: |
+    ~ marketplace_adopt approval and APPROVAL_REQUIRED output are exact-review bound
+    ~ marketplace_fork approval and APPROVAL_REQUIRED output are exact-review bound
+    ~ marketplace_review_canvas_install approval is now the exact object, not a string
+    + readiness reason: MARKETPLACE_INSTALL_BINDING_STALE
+    ~ stale no-write adopt/fork confirmations release their idempotency reservation
+
+- version: 2026.08.12-7
+  surface: tool
+  feature_key: canvas_execution_approval_v1
+  change: >-
+    Canvas create and update commit responses may omit previewUrl when the
+    persisted execution identity is not exactly approved for the family.
+  action: update_calls
+  agent_guidance: >-
+    Treat a missing commit previewUrl as review-required, not as a failed save.
+    Use the parent Canvas approval surface before requesting runnable content.
+  details_diff: |
+    ~ tool changed: canvas_create (outputSchema)
+    ~ tool changed: canvas_update (outputSchema)
+
 - version: 2026.08.12-6
   surface: tool
   change: >-
@@ -102,42 +372,37 @@ Conventions for this file:
 - version: 2026.08.12-2
   surface: tool
   change: >-
-    marketplace_adopt now distinguishes its no-write APPROVAL_REQUIRED result
-    from committed adoption output and teaches the active-parent confirmation
-    binding. marketplace_canvas_approval_readiness and
-    marketplace_review_canvas_install now teach bounded pagination, target
-    routing, explicit approval, and stale-key recovery.
+    Canvas marketplace adoption and fork confirmation now bind the parent's
+    approval to the exact review profileHash as well as the listing version and
+    packageHash. Re-adopting an unchanged installed package with damaged
+    approval evidence now repairs that same install after confirmation.
   action: update_calls
   agent_guidance: >-
-    For Canvas adoption, preflight without approval, show the returned review to
-    an active parent, and confirm only after explicit approval using the echoed
-    listingVersionId, packageHash, profileHash, and reviewVocabularyVersion.
-    The same binding repairs an already-copied install. For readiness, paginate
-    even across empty pages; send only MARKETPLACE_INSTALL_REVIEW targets with
-    their cursor to marketplace_review_canvas_install, preflight before
-    confirmation, and rerun readiness after STALE_REPAIR_KEY. AUTHORING_EDITOR
-    and nonActionableIssues have no MCP repair locator; ask the parent to use
-    the normal Sprout authoring/library UI.
+    On APPROVAL_REQUIRED, show the returned review and resend listingVersionId,
+    packageHash, and profileHash unchanged with approval.status APPROVED. Reuse
+    the same Idempotency-Key. Installed-package repair still confirms the opaque
+    repair target with approval APPROVED after showing its returned profileHash.
   details_diff: |
-    ~ tool changed: marketplace_adopt (description)
-    ~ tool changed: marketplace_canvas_approval_readiness (description)
-    ~ tool changed: marketplace_review_canvas_install (description)
+    ~ marketplace_adopt approval input: profileHash is required
+    ~ marketplace_fork approval input: profileHash is required
+    ~ marketplace_review_canvas_install description: identifies profileHash
 
-- version: 2026.08.11-6
+- version: 2026.08.12-1
   surface: tool
   change: >-
-    marketplace_fork now states the complete Canvas approval retry contract:
-    preflight without approval, confirmation with the returned approval binding
-    and the same Idempotency-Key, then exact replay of that confirmed input.
+    marketplace_adopt and marketplace_review_canvas_install now release a keyed
+    APPROVAL_REQUIRED preflight so the parent-confirmed call can reuse the same
+    Idempotency-Key. A completed adoption or repair remains cached for exact
+    replay of the confirmed input.
   action: update_calls
   agent_guidance: >-
-    For a Canvas fork, first call without approval. On APPROVAL_REQUIRED, add
-    approval.status APPROVED and the returned listingVersionId, packageHash,
-    profileHash, and reviewVocabularyVersion, then resend with the same
-    Idempotency-Key. After the fork commits, recover it only by replaying that
-    confirmed input unchanged with the same key.
+    For a Canvas adoption or installed-package repair, first call without the
+    approval field. On APPROVAL_REQUIRED, add the returned approval binding and
+    resend with the same Idempotency-Key. After the write commits, recover the
+    result by replaying that confirmed input unchanged.
   details_diff: |
-    ~ tool changed: marketplace_fork (description)
+    ~ tool changed: marketplace_adopt (description, idempotency behavior)
+    ~ tool changed: marketplace_review_canvas_install (description, idempotency behavior)
 
 - version: 2026.08.11-5
   surface: tool
@@ -169,10 +434,10 @@ Conventions for this file:
   action: update_calls
   agent_guidance: >-
     Send only MARKETPLACE_INSTALL_REVIEW targets to
-    marketplace_review_canvas_install. This MCP surface does not expose a
-    locator for AUTHORING_EDITOR targets or incomplete installs; ask the parent
-    to repair, recreate, reinstall, or remove them in the normal Sprout UI. Do
-    not pass those opaque keys to the marketplace review tool.
+    marketplace_review_canvas_install. Open AUTHORING_EDITOR targets in the
+    normal Canvas editor so the parent can approve the current bytes. For
+    MARKETPLACE_INSTALL_CLOSURE_INCOMPLETE, explain that the install must be
+    reinstalled or removed; do not invent a repair call.
   details_diff: |
     ~ tool changed: marketplace_canvas_approval_readiness (outputSchema)
     + output field added: nonActionableIssues
@@ -184,21 +449,19 @@ Conventions for this file:
     marketplace_adopt and marketplace_fork can now return APPROVAL_REQUIRED
     before copying a Canvas package. The review envelope contains the exact
     listing version, package hash, and bounded capability profile a parent must
-    accept; confirmation echoes the profile hash and review vocabulary too.
-    Two new parent-only tools expose pre-enrollment repair work:
-    marketplace_canvas_approval_readiness lists bounded opaque repair targets,
-    and marketplace_review_canvas_install reviews or repairs one unchanged
-    installed marketplace package.
+    accept; confirmation reuses those server-issued values. Two new parent-only
+    tools expose pre-enrollment repair work: marketplace_canvas_approval_readiness
+    lists bounded opaque repair targets, and marketplace_review_canvas_install
+    reviews or repairs one unchanged installed marketplace package.
   action: update_calls
   agent_guidance: >-
     Treat APPROVAL_REQUIRED as an intermediate outcome, show its review profile
     to the parent, and call marketplace_adopt or marketplace_fork again with the
-    returned listingVersionId, packageHash, profileHash, and
-    reviewVocabularyVersion only after explicit approval. For an existing
-    install, discover opaque targets with marketplace_canvas_approval_readiness,
-    then preflight and confirm each marketplace target with
-    marketplace_review_canvas_install. Never invent or retain private Canvas
-    bytes from these content-free envelopes.
+    returned listingVersionId, packageHash, and profileHash only after explicit approval. For
+    an existing install, discover opaque targets with
+    marketplace_canvas_approval_readiness, then preflight and confirm each
+    marketplace target with marketplace_review_canvas_install. Never invent or
+    retain private Canvas bytes from these content-free envelopes.
   details_diff: |
     ~ tool changed: marketplace_adopt (inputSchema, outputSchema)
     + output variant added: marketplace_adopt APPROVAL_REQUIRED
