@@ -4,7 +4,7 @@ Machine-readable, append-only log of agent-visible contract changes. Consumed by
 agents (not humans) — served as the `sprout://changelog` MCP resource (newest
 first). This file is a downstream **mirror** of the canonical copy in
 sprout-app (`apps/server/mcp/changelog.md`), mirrored as of sprout-app
-`034e13bd98` (contract `2026.10.01-1`). Edit the changelog in sprout-app, not
+`6bdb4ff88c` (contract `2026.10.01-3`). Edit the changelog in sprout-app, not
 here; this copy is synced from it by hand (no automation until SPR-3120).
 
 Each entry is keyed to the `contractVersion` in `apps/server/mcp-contract.lock.json`
@@ -39,6 +39,37 @@ Conventions for this file:
   never collide with a real lockfile head.
 
 ## Entries
+
+- version: 2026.10.01-3
+  surface: behavior
+  change: >-
+    A one-off read-aloud task (a Canvas task with a read-aloud activity
+    verification, a "book") with no declared run-data policy now keeps the
+    kid's unfinished Canvas run across kid-local days, as if it declared
+    `retain` (SPR-7418): the kid picks the book up where they left off,
+    provided they reopen it within the retain window, 30 days by default and
+    server-configurable. Every run under an effective `retain`, declared or
+    by this default, now stays unfinished for that window after its last open
+    (previously 48 hours), and each reopen starts a new window. A book left
+    unopened for longer starts fresh. Every other task keeps the `refresh`
+    default and its 48-hour window. An explicit `refresh` still wins, whether
+    it comes from the canvas (`runData` on canvas_create / canvas_update) or
+    the task (`canvasSpec.runData` on task_create, program_create or
+    program_update). `task_describe`'s `resolvedRun.runData` for a book now
+    reads `{effective: "retain", source: "default"}`. canvas_create and
+    canvas_update's `runData` description says so.
+  action: none
+  agent_guidance: >-
+    To make a read-aloud book start fresh every day, set
+    `canvasSpec.runData: "refresh"` on task_create, program_create or
+    program_update, or `runData: "refresh"` on its canvas. Otherwise omit it.
+    A recurring (daily) read-aloud still starts fresh each day. Don't promise
+    a parent that a book resumes indefinitely: after about 30 days unopened it
+    starts over.
+  details_diff: |
+    ~ canvas_create/canvas_update runData description: omitted defaults to retain for a one-off read-aloud task (within the retain window), refresh otherwise
+    ~ behavior: resolvedRun.runData default tier is retain for a one-off read-aloud task
+    ~ behavior: an unfinished run under effective retain expires 30 days (configurable) after its last open instead of 48 hours
 
 - version: 2026.10.01-1
   surface: tool
