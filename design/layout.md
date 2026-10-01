@@ -5,7 +5,7 @@
 The injected stylesheet resets margins and gives `<body>`:
 
 - `background: var(--bg-primary)` (white) — **never override** (analyzer error)
-- `font-family: var(--font-family-body)` (Inter + system fallbacks) — **never
+- `font-family: var(--font-body)` (Inter + system fallbacks) — **never
   override**; TossFace applies to emoji via `.tf` and emoji-bearing kit slots
 - `padding: var(--spacing-xl)` (16px) all around, `overflow-y: auto`
 - base type: 16px/24 `--text-primary`; `h1` = display-xs bold, `h2` = text-xl
