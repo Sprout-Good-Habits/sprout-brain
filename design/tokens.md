@@ -2,18 +2,11 @@
 
 > **GENERATED FILE — do not edit by hand.** Regenerate with
 > `node scripts/sync-design-inventory.mjs --css <artifact-design-system.css> --commit <sha>`.
-> Source: `apps/server/src/services/mastra/tools/artifact-design-system.css` @ sprout-app `77ada1b8e`.
+> Source: `apps/server/src/services/mastra/tools/artifact-design-system.css` @ sprout-app `6daf8825e`.
 
 Every token below is a CSS custom property available inside EVERY canvas via the
 injected base stylesheet. Use `var(--token)` — never hardcode hex, px sizes, or
 font stacks where a token exists (the server analyzer flags hex as a design error).
-
-## Font family
-
-| Token | Value |
-| --- | --- |
-| `--font-family-display` | `'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif` |
-| `--font-family-body` | `'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif` |
 
 ## Font weights
 
@@ -61,12 +54,12 @@ font stacks where a token exists (the server analyzer flags hex as a design erro
 | Token | Value |
 | --- | --- |
 | `--letter-spacing-display` | `-0.02em` |
-| `--letter-spacing-text` | `0` |
 
 ## Spacing scale
 
 | Token | Value |
 | --- | --- |
+| `--spacing-none` | `0` |
 | `--spacing-xxs` | `2px` |
 | `--spacing-xs` | `4px` |
 | `--spacing-sm` | `6px` |
@@ -85,6 +78,7 @@ font stacks where a token exists (the server analyzer flags hex as a design erro
 
 | Token | Value |
 | --- | --- |
+| `--radius-none` | `0` |
 | `--radius-xs` | `4px` |
 | `--radius-sm` | `6px` |
 | `--radius-md` | `8px` |
@@ -286,6 +280,7 @@ font stacks where a token exists (the server analyzer flags hex as a design erro
 | `--bg-warning-solid` | `#ca8504` |
 | `--bg-overlay` | `rgba(10,13,18,0.2)` |
 | `--bg-disabled` | `#f5f5f5` |
+| `--bg-quaternary` | `var(--gray-200, #e9eaeb)` |
 
 ## Semantic — text
 
@@ -296,7 +291,7 @@ font stacks where a token exists (the server analyzer flags hex as a design erro
 | `--text-tertiary` | `#535862` |
 | `--text-quaternary` | `#717680` |
 | `--text-white` | `#ffffff` |
-| `--text-disabled` | `#717680` |
+| `--text-disabled` | `var(--gray-400)` |
 | `--text-placeholder` | `#717680` |
 | `--text-brand-primary` | `#0b4a6f` |
 | `--text-brand-secondary` | `#026aa2` |
@@ -342,8 +337,131 @@ font stacks where a token exists (the server analyzer flags hex as a design erro
 
 | Token | Value |
 | --- | --- |
+| `--font-display` | `'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif` |
+| `--font-body` | `'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif` |
+| `--shadow-soft` | `rgba(28,46,64,0.16)` |
+| `--shadow-elevated` | `0 12px 16px -4px rgba(10,13,18,0.08), 0 4px 6px -2px rgba(10,13,18,0.03)` |
+| `--shadow-dialog` | `0 2px 2px -1px rgba(10,13,18,0.04), 0 4px 6px -2px rgba(10,13,18,0.03), 0 12px 16px -4px rgba(10,13,18,0.08)` |
+| `--overlay-white-20` | `rgba(255,255,255,0.2)` |
+| `--overlay-white-50` | `rgba(255,255,255,0.5)` |
+| `--overlay-white-60` | `rgba(255,255,255,0.6)` |
 | `--black` | `#000000` |
 | `--white` | `#ffffff` |
+| `--canvas-safe-top` | `104px` |
+| `--sprout-buddy-clearance` | `150px` |
+| `--focus-ring-color` | `var(--brand-700, #026aa2)` |
+| `--focus-ring-width` | `3px` |
+| `--focus-ring-offset` | `2px` |
+| `--response-stroke-subtle` | `1px` |
+| `--response-stroke-default` | `2px` |
+| `--response-stroke-focus` | `3px` |
+| `--drop-3` | `0 3px 0 0 var(--gray-200, #e9eaeb)` |
+| `--drop-4` | `0 4px 0 0 var(--gray-200, #e9eaeb)` |
+| `--drop-brand` | `0 4px 0 0 var(--brand-600, #0086c9)` |
+| `--drop-correct` | `0 4px 0 0 var(--green-200, #abefc6)` |
+| `--drop-incorrect` | `0 4px 0 0 var(--red-200, #fecdca)` |
+| `--oral-accent-complete` | `var(--word-accent-complete)` |
+| `--oral-accent-primary` | `var(--word-accent-primary)` |
+| `--oral-border-bead` | `var(--word-border-frame)` |
+| `--oral-guide-ring` | `rgb(196,232,252)` |
+| `--oral-surface-bead` | `var(--word-surface-tile)` |
+| `--oral-surface-bead-held` | `var(--word-surface-tile-active)` |
+| `--oral-surface-control` | `var(--word-accent-primary)` |
+| `--oral-surface-control-held` | `rgb(19,125,181)` |
+| `--oral-text-on-accent` | `var(--text-white, #ffffff)` |
+| `--oral-text-primary` | `var(--word-text-primary)` |
+| `--response-border-correct` | `var(--green-200, #abefc6)` |
+| `--response-border-default` | `var(--border-secondary, #e9eaeb)` |
+| `--response-border-disabled` | `var(--gray-300, #d5d7da)` |
+| `--response-border-incorrect` | `var(--red-200, #fecdca)` |
+| `--response-border-selected` | `var(--brand-200, #b9e6fe)` |
+| `--response-icon-on-accent` | `var(--fg-white, #ffffff)` |
+| `--response-icon-selected` | `var(--fg-brand-primary, #0ba5ec)` |
+| `--response-size-control` | `24` |
+| `--response-spacing-component-group` | `20` |
+| `--response-surface-correct` | `var(--bg-success-secondary, #dcfae6)` |
+| `--response-surface-default` | `var(--bg-primary, #ffffff)` |
+| `--response-surface-disabled` | `var(--gray-50, #fafafa)` |
+| `--response-surface-incorrect` | `var(--bg-error-secondary, #fee4e2)` |
+| `--response-surface-selected` | `var(--bg-brand-secondary, #e0f2fe)` |
+| `--response-surface-subtle` | `var(--bg-secondary, #fafafa)` |
+| `--response-text-default` | `var(--text-primary, #181d27)` |
+| `--response-text-disabled` | `var(--gray-500, #717680)` |
+| `--response-text-secondary` | `var(--text-secondary, #414651)` |
+| `--swap-border-bead` | `var(--word-border-frame)` |
+| `--swap-border-entering` | `var(--word-accent-complete)` |
+| `--swap-border-target` | `rgb(240,82,87)` |
+| `--swap-surface-bead` | `var(--word-surface-tile)` |
+| `--swap-surface-entering` | `rgb(229,250,229)` |
+| `--swap-surface-target` | `rgb(255,232,232)` |
+| `--swap-text-primary` | `var(--word-text-primary)` |
+| `--taffy-border-word` | `rgb(227,94,156)` |
+| `--taffy-guide-stretch` | `rgb(245,186,214)` |
+| `--taffy-surface-word` | `rgb(255,199,224)` |
+| `--taffy-surface-word-held` | `rgb(255,161,199)` |
+| `--taffy-text-word` | `rgb(150,33,84)` |
+| `--trace-guide-rule` | `rgb(221,226,229)` |
+| `--trace-letter-guide` | `rgb(229,231,233)` |
+| `--trace-letter-ink` | `rgb(66,67,72)` |
+| `--trace-letter-path` | `var(--brand-500, #0ba5ec)` |
+| `--trace-surface-active-letter` | `var(--brand-500, #0ba5ec)` |
+| `--trace-surface-page` | `rgb(255,255,255)` |
+| `--trace-surface-response` | `rgb(255,254,252)` |
+| `--trace-text-active` | `rgb(52,56,62)` |
+| `--trace-text-inactive` | `rgb(208,213,218)` |
+| `--word-accent-complete` | `var(--gray-900, #181d27)` |
+| `--word-accent-primary` | `var(--brand-500, #0ba5ec)` |
+| `--word-border-frame` | `rgb(215,223,232)` |
+| `--word-letter-green` | `var(--green-500, #17b26a)` |
+| `--word-surface-tile` | `rgb(255,255,255)` |
+| `--word-surface-tile-active` | `rgb(234,248,255)` |
+| `--word-target-active` | `var(--gray-900, #181d27)` |
+| `--word-target-ghost` | `var(--gray-200, #e9eaeb)` |
+| `--word-text-primary` | `rgb(52,56,62)` |
+| `--word-letter-purple` | `var(--violet-500, #875bf7)` |
+| `--word-letter-yellow` | `var(--yellow-500, #eaaa08)` |
+| `--word-surface-page` | `#ffffff` |
+| `--word-text-secondary` | `rgb(121,130,140)` |
+| `--oral-surface-page` | `var(--word-surface-page)` |
+| `--swap-surface-page` | `var(--word-surface-page)` |
+| `--swap-text-secondary` | `var(--word-text-secondary)` |
+| `--taffy-surface-page` | `var(--word-surface-page)` |
+| `--taffy-text-secondary` | `var(--word-text-secondary)` |
+| `--ot` | `var(--gray-200)` |
+| `--wc` | `var(--gray-200)` |
+| `--wc-drop` | `4px` |
+| `--as` | `var(--gray-200)` |
+| `--slot-ghost-font` | `800 16px/0 var(--font-display)` |
+| `--slot-ghost-pad` | `0 18px` |
+| `--slot-ghost-min` | `36px` |
+| `--di` | `var(--gray-200)` |
+| `--mt` | `var(--gray-200)` |
+| `--mc` | `var(--gray-200)` |
+| `--sc` | `var(--gray-200)` |
+| `--progress-accent` | `Sprout host = sprout-400,
+   Village host = brand-500. The session bar defaults to the Sprout host color. */
+.session-bar{--progress-accent:var(--sprout-400)}
+.progress-checkpoints{position:absolute` |
+| `--sb-fill` | `var(--bg-primary)` |
+| `--cb` | `var(--brand-600)` |
+| `--pab` | `var(--brand-600)` |
+| `--ls-pct` | `50` |
+| `--lt` | `var(--response-border-default)` |
+| `--lt-bg` | `var(--response-surface-default)` |
+| `--overlay-gray-60` | `rgba(10,13,18,0.6)` |
+| `--sprout-dock-reserve` | `272px}
+html:has(.sprout-dock .action-bar.two-up){--sprout-dock-reserve:320px}
+.sprout-dock{position:absolute` |
+| `--bub-surface-page` | `var(--bg-primary)` |
+| `--bub-film` | `var(--brand-50)` |
+| `--bub-film-swoosh` | `var(--bg-sky)` |
+| `--bub-burst` | `var(--brand-500)` |
+| `--bub-text` | `var(--gray-900)` |
+| `--bub-text-reveal-from` | `var(--trace-text-inactive)` |
+| `--bub-text-reveal-to` | `var(--trace-text-active)` |
+| `--bub-error` | `var(--red-100)` |
+| `--bub-error-text` | `var(--red-600)` |
+| `--bub-error-swoosh` | `var(--red-200)` |
 
 ## Class + keyframe inventory
 
