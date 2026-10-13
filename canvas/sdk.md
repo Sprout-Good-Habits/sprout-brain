@@ -11,10 +11,12 @@ or curated Rive dependencies under the rules below.
 > shell. Read `sprout://canvas/design` (the Sprout kid design language) with
 > equal force — the Sprout design system (CSS classes, components, tokens,
 > layout patterns) is documented separately there and in `artifact-kit.md`.
-> Use both. **The host injects the design-system stylesheet by default
-> (`injectBaseStyles: false` opts out — see `canvas.create`/`canvas.update`);
-> use kit classes (`canvas-btn`, `sprout-dock`, `media-*`, `list-item`) for
-> structure and look. Your own `<link rel="stylesheet">` URL policy — see
+> Use both. **Which Sprout stylesheet joins your page depends on the path:
+> Sprout's in-app authoring adds the full design kit; an MCP
+> `canvas.create`/`canvas.update` takes `styles` (its modes and default are in
+> `sprout://canvas/design`). With the kit present, use kit classes
+> (`canvas-btn`, `sprout-dock`, `media-*`, `list-item`) for structure and
+> look. Your own `<link rel="stylesheet">` URL policy — see
 > the host's URL classifier
 > and [Rules](#rules) §1/§2 for the allowed shapes.** A canvas built on its
 > own custom CSS instead of kit classes does not fail to publish (inline
@@ -2170,6 +2172,126 @@ from a Canvas payload. The parent-review preview does not contact a real family,
 upload the capture, or create a production submission.
 
 ---
+
+> **Feature-gated contract:** Host photos in an open Canvas step requires a supported host and the existing runtime-media rollout controls. This documentation does not announce deployment or production availability.
+
+## Host photos in an open Canvas step
+
+```ts
+sprout.onPhotoAttach(handler: (input: PhotoAttachInput) => PhotoAttachResult | Promise<PhotoAttachResult>): void;
+sprout.setPhotoStep({ open: true, kind: 'photo', stepId: 'desk-photo' });
+```
+
+Register a handler **and** declare the current step before the host can offer a
+photo from the Canvas chat sheet. Either registration order works. Each later
+`setPhotoStep` publishes the new declaration; close the step when it has what it
+needs. `kind` is `photo`, `video`, or `any`. `stepId` uses 1–64 letters, digits,
+or hyphens. Older canvases and hosts remain compatible without a version floor.
+Feature-detect **both** new methods before registering the host handler or making
+any photo-step update; on an older runtime, keep the existing own-camera path.
+
+The host sends `photo.attach` with `{ id, attemptId, stepId, photo }`. The photo
+contains `{ previewSrc, captureId, mimeType, source, takenAt? }`. `previewSrc` is
+an opaque `sprout-media://runtime/runtime-media/<id>` display reference, never
+bytes or a `data:`, `blob:`, or `file:` URL. `captureId` is an upload grant for
+the existing `sprout.asset.upload({ source: { type: 'capture', captureId } })`
+path, with its existing consent, task-linkage and server safety checks. The host
+checks device safety and proof admission before delivery; an unavailable safety
+check refuses this destination. The lease owns a separate protected copy, so its
+expiry never deletes the chat attachment.
+
+This destination requires **both** server-derived `camera.capture` and
+`asset.upload` capabilities in the Canvas execution scope. Registering
+`onPhotoAttach` or calling `setPhotoStep` alone grants neither. The static scanner
+derives capabilities from genuine executable SDK call sites; comments and a
+manually claimed list do not authorize them. Consent, task linkage, execution
+approval, safety and lease checks still apply on every host operation.
+
+This example's own camera button captures a photo, and both that button and the
+sheet handler upload the accepted capture for a durable preview. Keep these
+working paths when using this example; do not add unreachable capture/upload
+calls solely to claim capabilities. Provide a non-camera activity path when
+runtime media is unavailable.
+
+```html
+<button id="desk-photo-camera" type="button">Take a desk photo</button>
+<img id="desk-photo-preview" alt="Your desk photo" />
+```
+
+```js
+const deskPhotoPreview = document.getElementById('desk-photo-preview');
+const deskPhotoCamera = document.getElementById('desk-photo-camera');
+const hostPhotoSupported =
+  typeof sprout.onPhotoAttach === 'function' && typeof sprout.setPhotoStep === 'function';
+let deskPhotoAccepted = false;
+let deskPhotoBusy = false;
+async function acceptDeskPhoto({ stepId, photo }) {
+  if (stepId !== 'desk-photo' || deskPhotoAccepted) {
+    return { attached: false, reason: 'step_done' };
+  }
+  if (!(deskPhotoPreview instanceof HTMLImageElement)) {
+    return { attached: false, reason: 'unavailable' };
+  }
+  if (deskPhotoBusy) return { attached: false, reason: 'busy' };
+  deskPhotoBusy = true;
+  try {
+    const upload = await sprout.asset.upload({
+      source: { type: 'capture', captureId: photo.captureId },
+    });
+    if (upload.status !== 'ready') return { attached: false, reason: 'unavailable' };
+    deskPhotoPreview.src = upload.asset.src;
+    deskPhotoAccepted = true;
+    if (deskPhotoCamera instanceof HTMLButtonElement) deskPhotoCamera.disabled = true;
+    if (hostPhotoSupported) sprout.setPhotoStep({ open: false, kind: 'photo', stepId });
+    return { attached: true };
+  } catch {
+    return { attached: false, reason: 'unavailable' };
+  } finally {
+    deskPhotoBusy = false;
+  }
+}
+if (hostPhotoSupported) {
+  sprout.onPhotoAttach(acceptDeskPhoto);
+  sprout.setPhotoStep({ open: true, kind: 'photo', stepId: 'desk-photo' });
+}
+if (deskPhotoCamera instanceof HTMLButtonElement) {
+  deskPhotoCamera.addEventListener('click', async () => {
+    try {
+      const capture = await sprout.camera.capture();
+      if (capture.status === 'captured') {
+        await acceptDeskPhoto({ stepId: 'desk-photo', photo: capture.capture });
+      }
+    } catch {
+      deskPhotoCamera.textContent = 'Try photo again';
+    }
+  });
+}
+```
+
+The runtime answers `photo.attach-response` with the same `id` and `attemptId`
+and either `attached: true` or `attached: false` plus one of `no_photo_step`,
+`step_done`, `wrong_kind`, `busy`, `unavailable`. The runtime validates every
+inbound seam and replays a completed attempt without rerunning the handler,
+even after the step advances. No entry is added to `sprout.activity.photos()`.
+
+Hosts call `requestPhotoAttach({ attemptId, stepId, photo })`. Its bounded wait
+returns `no_answer` after 2 seconds; this means the outcome is uncertain.
+`onLatePhotoAttach` reconciles a later success. Retry with the **same** attempt
+id, in the **same live document**. A closed step still allows a dispatched attempt
+to read its cached answer, but never accepts a new attempt. A replacement document
+has lost that cache: hosts hold an uncertain older attempt pending and never
+replay it into the replacement. The photo remains a chat attachment; recovery
+cannot claim the previous Canvas commit did or did not happen.
+After document loss, hosts retain a session-local **unconfirmed** outcome,
+not a confirmed attachment or failure. They offer no Retry/Retake or proof
+fallback for that older attempt. Same-live-document timeouts may still retry
+the same id while that document retains its outcome cache. No durable outcome
+readback is implemented here; true recovery across document loss requires a
+future durable outcome owner.
+Do not start another committing destination after `no_answer`: an original
+handler may still succeed. Only an authoritative refusal permits proof fallback.
+The native view exposes `onPhotoStepSupport`, `photoAttachNonce`, `photoAttach`,
+`onPhotoAttachResult` and `onLatePhotoAttach` for the same exchange.
 
 ## Release-gated and roadmap methods
 
