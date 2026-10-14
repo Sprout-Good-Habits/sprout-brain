@@ -6,7 +6,7 @@ Engine-structure patterns proven in production (content-update seam, state
 schema, analyzable completion, resume, QA) live in
 `../../canvas/worked-patterns.md`.
 
-Last verified: 2026-07-12
+Last verified: 2026-10-13
 
 ## Tools
 
@@ -73,3 +73,8 @@ Use canvases for:
 - A canvas can motivate, orient, collect a kid claim, or run an in-canvas
   activity.
 - A canvas should not be treated as proof of offscreen work.
+
+## Feature-gated host photos
+
+Register a handler **and** declare the current step before the host can offer a
+photo from the Canvas chat sheet. See `../../canvas/sdk.md` → "Host photos in an open Canvas step"; availability depends on the supported host and rollout controls.

@@ -2,7 +2,7 @@
 
 A canvas is a kid-facing HTML artifact.
 
-Last verified: 2026-06-18
+Last verified: 2026-10-13
 
 ## Use for
 
@@ -29,3 +29,8 @@ Last verified: 2026-06-18
 - `canvas_update`
 - `canvas_list`
 - `canvas_get`
+
+## Feature-gated host photos
+
+Register a handler **and** declare the current step before the host can offer a
+photo from the Canvas chat sheet. See `../../canvas/sdk.md` → "Host photos in an open Canvas step"; availability depends on the supported host and rollout controls.
