@@ -65,11 +65,11 @@ checkpoint (see `canvas.md`) plus a bounded record of recent settled
 completions and play/paid counters. `task_describe` surfaces it per child as
 the `state` block (`lastResult`, `recent[]`, `counters`, opaque `progress`)
 and a `lastRun` aggregate (most recent settled run + its journey `log`,
-capped ~16 KB). These blocks appear only when the family's `task_quests`
-feature is enabled (rollout in progress) AND a child is resolved — pass
+capped ~16 KB). These blocks appear whenever a child is resolved — pass
 `childId` on `task_describe` for a multi-child task (single-child tasks
-auto-resolve). Absence means flag-off or unresolved child scope, not
-"no data ever".
+auto-resolve). The `task_quests` family gate that once hid them was removed
+(SPR-3093; its rows deleted in SPR-12433). Absence means unresolved child
+scope, not "no data ever".
 
 ## Content rotation — the task id owns the journey
 
@@ -94,13 +94,12 @@ Because progress and run history live on the task id:
   extra earning room is `policy.extras`, not a bigger `rewardSpec`.
 - Do not use `rewardSpec` when completion is only a low-trust claim.
 - For parent-approved rewards: `task_complete` creates the submission, then
-  `task_review({ action, gemsAwarded })` approves/rejects. Flag-off (family
-  without `task_quests`): `gemsAwarded` is **optional** — omit it to record
-  approval without crediting gems; gems are never awarded automatically.
-  Flag-on: approval is the DEFERRED settlement clock — credit comes ONLY from
-  the consumed quest's frozen reward (with grace for a quest that expired
-  between completion and approval); `gemsAwarded` is IGNORED, so a free-play
-  receipt can never be parent-credited. Rejection consumes nothing — the
+  `task_review({ submissionId, action })` approves/rejects. Approval is the
+  DEFERRED settlement clock — credit comes ONLY from the consumed quest's
+  frozen reward (with grace for a quest that expired between completion and
+  approval). `task_review` takes no gem amount (`gemsAwarded` was removed in
+  contract `2026.08.17-10`), so a free-play receipt can never be
+  parent-credited. Rejection consumes nothing — the
   quest stays available only while unexpired (the post-expiry grace applies
   to approval only).
 - The MCP server's `initialize` instructions do NOT carry this earning/replay

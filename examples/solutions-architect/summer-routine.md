@@ -10,7 +10,7 @@ I want a summer day plan for my 6-year-old.
 
 ## Route
 
-Program planner.
+Routine planner.
 
 ## Recommended Sprout shape
 

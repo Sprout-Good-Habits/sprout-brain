@@ -1,19 +1,12 @@
-# Primitive: Heartbeat
+# Primitive: Heartbeat (removed)
 
-A heartbeat is a scheduled skill run.
+Heartbeats were scheduled skill runs. Their MCP tools were removed in contract
+`2026.10.12-4`; see `../capabilities/heartbeat.md`.
 
-Last verified: 2026-06-02
-
-## Use when
-
-- An agent routine should run periodically.
-- A parent-facing result should be posted on a cadence.
-
-## Avoid when
-
-- A simple recurring task is enough.
+Last verified: 2026-11-07
 
 ## Rule of thumb
 
-Recurring kid activity usually means task. Recurring agent work usually means
-heartbeat.
+Recurring kid activity means a recurring task (`task_create` with
+`scheduleSpec`). A routine for the family is set up by asking Sprout in a chat.
+Recurring agent work runs on the home agent's own cron.

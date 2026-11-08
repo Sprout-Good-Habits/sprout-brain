@@ -89,7 +89,7 @@ remote `llms.md` first when possible, then load leaf docs on demand.
    - For non-coder parents, hide MCP/schema details unless they matter.
 
 3. Map the goal to current Sprout primitives:
-   - canvas, skill, task, conversation, heartbeat, reward, gems,
+   - canvas, skill, task, conversation, reward, gems, screen time,
      submission/review, home-agent evidence.
 
 4. Name current limits plainly:
@@ -134,22 +134,22 @@ state against `../../knowledge/capabilities/current-platform.md` before
 telling a partner the `loop.*` verbs are live, and never report a loop as
 running until its write verbs actually succeed.
 
-### When to recommend a loop vs a heartbeat vs a one-off task
+### When to recommend a loop vs a recurring task vs a one-off task
 
 - **Loop** — a recurring **freshness / maintenance** need (review progress,
   regenerate drills, bridge external evidence) AND a BYOA runner is present to
   do the off-server work. The agent owns cadence and intelligence; the work
   needs local capability (a logged-in browser, heavy models, files) Sprout
   cannot host.
-- **Heartbeat** — Sprout runs the recurrence **server-side** for a kid:
-  scheduled delivery or a parent-facing result post, ≤4/day, **no local
-  dependencies and no `canvas.update`** (the scheduled executor has no canvas
-  tools). See `../../knowledge/capabilities/heartbeat.md`.
+- **Recurring task** — Sprout delivers the activity to the kid on a schedule
+  (`task_create` with `scheduleSpec`). The heartbeat tools were removed
+  (contract `2026.10.12-4`); for a family routine, tell the parent to ask Sprout
+  in a chat. See `../../knowledge/capabilities/heartbeat.md`.
 - **One-off task** — a single kid activity with no recurrence.
 
-Rule of thumb: recurring **delivery** → heartbeat / recurring task
-(Sprout-side); recurring **maintenance that regenerates content or bridges
-external state** → loop (home-agent-side).
+Rule of thumb: recurring **delivery** → recurring task (Sprout-side);
+recurring **maintenance that regenerates content or bridges external state** →
+loop (home-agent-side).
 
 ### The lifecycle you may plan
 
