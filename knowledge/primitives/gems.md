@@ -2,12 +2,15 @@
 
 Gems are the incentive currency.
 
-Last verified: 2026-06-02
+Last verified: 2026-11-07, against sprout-app contract `2026.11.07-1`.
 
 ## Use
 
-- `task_review({ gemsAwarded })` for reviewed task/submission reward.
-- `gems.adjust` for manual adjustments when available and appropriate.
+- A task's `policy.rewards` (set on `task_create`), settled when the parent
+  approves the submission with `task_review({ submissionId, action: "approve" })`.
+  The amount is fixed by the task's policy; `task_review` takes no gem amount
+  (`gemsAwarded` was removed in contract `2026.08.17-10`).
+- `gems_adjust` for manual adjustments, with a `reason` and the parent's yes.
 
 ## Avoid
 

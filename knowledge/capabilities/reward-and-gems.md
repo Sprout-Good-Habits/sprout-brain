@@ -31,13 +31,15 @@ gems back, even on approve: after `reward_review_claim`, read `status`.
 
 - `gems_query_balance`
 - `gems_list_transactions`
-- `task_review({ gemsAwarded })`
+- `task_review({ submissionId, action: 'approve' })` — settles the task's frozen
+  `policy.rewards` in full; it takes no gem amount (`gemsAwarded` was removed in
+  contract `2026.08.17-10`)
 - `gems_adjust` — direct balance adjustment
 
 ## Default rule
 
-For evidence-based programs, award gems through `task_review` after parent
-approval. Do not grant gems from a kid-facing canvas when the canvas only
+For evidence-based tasks, set the gems in the task's `policy.rewards` and let
+parent approval through `task_review` settle them. Do not grant gems from a kid-facing canvas when the canvas only
 records a claim.
 
 ## Example
