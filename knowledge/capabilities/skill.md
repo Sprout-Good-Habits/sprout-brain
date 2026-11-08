@@ -18,16 +18,18 @@ Last verified: 2026-07-01
 
 - `skill_write` links canvases by `canvasIds`; there is no inline canvas HTML.
 - `kidCallable: true` requires an `ageRange` (else `BAD_INPUT`).
-- `handsReferenced` declares which delivery tool the skill's prompt uses —
-  `task_create` (Run shape) or `heartbeat_create` (Assignment shape), not both.
+- `handsReferenced` declares the MCP tools the skill's prompt uses. A skill
+  passed as `task_create`'s `assignmentSkillId` must declare `task_create`
+  (else `SKILL_NOT_ASSIGNMENT`). `heartbeat_*` hands are retired and dropped
+  (contract `2026.10.12-4`).
 - Skill dimensions are server-derived. Do not pass dimensions.
 - `skill_invoke` is render-only for external callers. It does not deliver
   anything to a kid — no gems, no notification.
-- Do not report a skill as surfaced until a task or heartbeat delivers it.
+- Do not report a skill as surfaced until a task delivers it. `task_create` is
+  the one delivery step.
 
 ## Home-agent category
 
 `skill_write` supports `category: "home_agent"` for dependencies that live on
 the home-agent side. A home-agent skill does not deliver a kid experience in
-Sprout by itself, and cannot be scheduled via `heartbeat_create` or run by
-`skill_invoke`.
+Sprout by itself, and is not run by `skill_invoke`.

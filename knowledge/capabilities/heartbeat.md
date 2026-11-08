@@ -1,51 +1,35 @@
-# Heartbeat Capability
+# Heartbeat Capability (removed)
 
-Heartbeats schedule skill runs on a cadence. They are different from recurring
-child tasks.
+The heartbeat tools are gone. `heartbeat_list`, `heartbeat_describe`,
+`heartbeat_create`, `heartbeat_update`, `heartbeat_pause`, `heartbeat_resume`
+and `heartbeat_cancel`, and the `sprout://heartbeat/authoring-guide` resource,
+were removed from the Sprout MCP in contract `2026.10.12-4`. A call to one
+returns `TOOL_NOT_FOUND`. Heartbeats made before then keep running; the parent
+pauses or removes them in the app.
 
-Last verified: 2026-07-01
+Last verified: 2026-11-07, against sprout-app `apps/server/mcp/changelog.md`.
 
-## Tools
+## Use instead
 
-- `heartbeat_describe`
-- `heartbeat_list`
-- `heartbeat_create`
-- `heartbeat_update`
+- **Deliver to a kid with `task_create`**, one-off or recurring
+  (`scheduleSpec.taskType: "schedule"`). It is the one delivery step.
+- **For a routine, tell the parent to ask Sprout in a chat.** Routines are set up
+  by Sprout in the chat the parent asks in, not over MCP.
+- Drop `heartbeat_*` from a skill's `handsReferenced`; `skill_write` and
+  `skill_update` drop them anyway.
 
-## Use when
+## Content-refresh loops run on the home agent's own schedule
 
-- An agent routine should run periodically.
-- A parent-facing result should be posted on a cadence.
-- A skill needs to inspect or react to state over time.
+Sprout has no scheduled executor you can point at a canvas. A loop that reviews
+progress and updates content runs on the home agent's side:
 
-## Avoid when
-
-- A simple recurring task delivers the child activity.
-- The cadence would exceed current platform limits.
-
-## Default recommendation
-
-Use ordinary recurring tasks for recurring kid activities. Use heartbeats for
-scheduled agent work or parent-facing result generation.
-
-## Content-refresh loops are HOME-AGENT-side — canvas.update is NOT possible from a heartbeat
-
-A heartbeat fire runs in Sprout's scheduled executor, which has **no canvas
-tools**: `canvas.update` / `canvas.create` cannot run on a fire, and
-`heartbeat.create` refuses a run skill whose `handsReferenced` declares them
-(`AUTHORING_AS_RUN_SKILL`). Do not design a heartbeat that "reviews progress
-and updates the canvas" — it will be rejected, and the executor could not do
-it anyway.
-
-The correct shape for a progress-review + content-update loop:
-
-1. Author the loop as a `category: "home_agent"` skill (`skill.write`) whose
-   procedure reads runs (`canvas.runs.list/get`), decides progression, and
-   calls `canvas.update` with regenerated content.
+1. Author the loop as a `category: "home_agent"` skill (`skill_write`) whose
+   procedure reads runs (`canvas_runs_list` / `canvas_runs_get`), decides
+   progression, and calls `canvas_update` with regenerated content.
 2. The skill's instructions tell the INVOKING home agent to schedule the loop
    on the agent's OWN cron (Claude Code cron, launchd, etc.).
-3. Each scheduled run: `skill.invoke` over MCP → follow the procedure →
-   `canvas.update` with parent authority, in-session, auditable.
+3. Each scheduled run: `skill_invoke` over MCP → follow the procedure →
+   `canvas_update` with parent authority, in-session, auditable.
 
-Division of labor: **heartbeats deliver kid-facing activity on a cadence; the
-home agent maintains and evolves the content those activities render.**
+Division of labor: **tasks deliver kid-facing activity on a cadence; the home
+agent maintains and evolves the content those activities render.**

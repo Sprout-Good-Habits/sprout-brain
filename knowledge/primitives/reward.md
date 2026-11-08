@@ -21,3 +21,6 @@ Last verified: 2026-06-02
 
 - Earning gems through task review.
 - Spending gems through reward claim.
+- Screen time: a reward never grants minutes (SPR-6976). Screen time is
+  bought with gems or earned through a tasks-first schedule; see
+  `../capabilities/screentime.md`.

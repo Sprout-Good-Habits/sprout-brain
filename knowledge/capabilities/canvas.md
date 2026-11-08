@@ -28,8 +28,7 @@ Use canvases for:
 
 ## Constraints
 
-- A canvas is invisible until linked to a skill and delivered through a task or
-  heartbeat.
+- A canvas is invisible until linked to a skill and delivered through a task.
 - The canvas SDK is auto-injected. Do not add arbitrary external scripts; the
   only sanctioned way to load a third-party library is a pinned relative
   canvas-CDN proxy URL (`/api/canvas-cdn/jsdelivr/npm/<pkg>@<version>/<file>`).
@@ -38,8 +37,8 @@ Use canvases for:
   allowed for assets uploaded with the canvas.
 - Canvases must emit exactly one terminal completion signal.
 - `canvas.update` content-refresh loops run on the HOME AGENT's own cron
-  (home_agent skill + `skill.invoke`), never on a heartbeat — the scheduled
-  executor has no canvas tools (see heartbeat.md).
+  (home_agent skill + `skill.invoke`); Sprout has no scheduled executor that can
+  update a canvas (see heartbeat.md).
 - Canvases persist run state across reopens via `sprout.state` (auto-saved); the
   child resumes where they left off. Durable run state only — no PII, JSON-serializable.
 - Canvases HAVE cross-day memory: `sprout.journey.get()` / `.save(next)` is a

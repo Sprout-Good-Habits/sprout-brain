@@ -11,11 +11,13 @@ or curated Rive dependencies under the rules below.
 > shell. Read `sprout://canvas/design` (the Sprout kid design language) with
 > equal force — the Sprout design system (CSS classes, components, tokens,
 > layout patterns) is documented separately there and in `artifact-kit.md`.
-> Use both. **The host injects the design-system stylesheet by default
-> (`injectBaseStyles: false` opts out — see `canvas.create`/`canvas.update`);
-> use kit classes (`canvas-btn`, `sprout-dock`, `media-*`, `list-item`) for
-> structure and look. Your own `<link rel="stylesheet">` URL policy — see
-> the host's URL classifier
+> Use both. **Which Sprout stylesheet joins your page depends on the path:
+> Sprout's in-app authoring adds the full design kit; an MCP
+> `canvas.create`/`canvas.update` takes `styles` (its modes and default are in
+> `sprout://canvas/design`). With the kit present, use kit classes
+> (`canvas-btn`, `sprout-dock`, `media-*`, `list-item`) for structure and
+> look. Your own `<link rel="stylesheet">` URL policy — see
+> `classifyUrl` in `apps/server/src/services/mcp/tools/canvas/_url-allowlist.ts`
 > and [Rules](#rules) §1/§2 for the allowed shapes.** A canvas built on its
 > own custom CSS instead of kit classes does not fail to publish (inline
 > `<style>` is allowed; any URL it references — `url(...)`, `@import` —
@@ -23,7 +25,7 @@ or curated Rive dependencies under the rules below.
 > never composed with the kit's own look for you — an author relying on
 > custom rules can end up fighting or overriding the kit rather than
 > matching it. See `runHtmlPipeline`/`injectBaseStyles`
-> for
+> (`apps/server/src/services/mastra/tools/artifactBaseStyles.ts`) for
 > exactly how the two combine. A `<link rel="stylesheet">` that passes the
 > URL policy above is added the same way — never replacing the kit
 > (SPR-6330).
@@ -38,13 +40,13 @@ Every method below is tagged **Released**, **Feature-gated**, or **Roadmap**.
   intentionally inert in the local **web preview** (it has no buddy overlay and
   no server allowlist) and reject there — each method's section flags this. Safe
   to build on, but always handle the documented preview-degraded branch.
-- **Feature-gated** — implemented on the supported host, but unavailable by
-  default. Runtime photo capture/upload requires the server-controlled
-  `canvas_uploads` launch decision: either `FEATURE_CANVAS_UPLOADS` is enabled
-  for the environment or the family has an active approved pilot grant. When
-  access is ineffective, the host blocks before camera presentation and before
-  creating, transferring, finalizing, or reading runtime media. The SDK methods
-  remain typed and discoverable so authors can implement a safe fallback.
+- **Feature-gated** — implemented on the supported host, but available only
+  where a server-side decision the Canvas cannot select allows it. Runtime
+  photo capture/upload is available to every family on the iOS kid host, behind
+  the child's base-account consent. When the server refuses, the host blocks
+  before camera presentation and before creating, transferring, finalizing, or
+  reading runtime media. The SDK methods remain typed and discoverable so
+  authors can implement a safe fallback.
   Task-driven `sprout.activity` video verification is separately gated by
   `activity_video_verification_v1` plus the assignment, Canvas declaration,
   cohort, iOS host-version, device, and permission checks described below.
@@ -177,12 +179,8 @@ Use `ageTier` to gate complexity — e.g., tier1 gets simpler multiplication
 tables (×2-5), tier3 gets the full ×2-12.
 
 Runtime-media requests (`camera.capture`, `asset.upload`, `asset.resolve`) are
-**Feature-gated** on the iOS kid host under `canvas_uploads`. The
-`FEATURE_CANVAS_UPLOADS` env lever defaults OFF (unset and every non-truthy
-value are OFF); effective per-family access is that lever OR an active family
-pilot grant, so a pilot grant can make access effectively ON even when the
-lever is off. See "Release-gated and roadmap methods" below for how the
-decision is composed. The parent-board-only Health proof
+**Feature-gated** on the iOS kid host: available to every family, behind the
+child's base-account consent. See "Release-gated and roadmap methods" below. The parent-board-only Health proof
 reads are documented below. Of the cross-run reads, `recall` is Released on the
 solo kid-device hosts (see its section for where it rejects) while `history` is
 still Roadmap and rejects as unsupported. Durable run state is a
@@ -469,50 +467,312 @@ celebrate a correct answer, read a prompt aloud for a pre-reader, or nudge a
 stuck kid. The host synthesizes the speech and plays it through the buddy
 overlay with lip-sync; your canvas only asks.
 
+Your canvas can also speak **as itself** — a narrator, a cow's "mooooo" — in a
+voice that is not Sprout's, and choose, line by line, whether it waits for
+Sprout, talks over him, or cuts him off. See
+[Speaking as the canvas](#speaking-as-the-canvas-spr-7456) below.
+
 **Released on the kid's device and in the web preview.** The kid's device uses
 the real Sprout buddy voice. The web preview uses a host-owned browser voice as
 an approximation so authors can verify spoken setup flow before device testing.
 
-### `sprout.tts.speak(opts: SproutTtsSpeakOptions, handle?: SproutLoadingHandle): Promise<{ spoken: true }>` — Released
+### `sprout.tts.speak(opts: SproutTtsSpeakOptions, handle?: SproutLoadingHandle): Promise<SproutTtsSpeakResult | SproutTtsNotSpokenResult>` — Released
 
 Ask the buddy to say `opts.text` out loud.
 
+**Long text is split for you.** One line carries at most 500 characters
+(`TTS_SPEAK_TEXT_MAX_CHARS` in `messages.ts`). Pass more and the SDK sends it
+as several lines, in order, split at a sentence end where it can. `speak`
+settles when the last of them has. The parts of an `as: 'canvas'` line are
+all sent at once, so they hold their place in the queue against your other
+`speak` calls, and one refused part rejects `speak` while the others still
+play. A Sprout-voiced line is different: the SDK asks for each part once the
+one before it has ended, so a part that is cut off, stopped or times out drops
+the rest and `speak` resolves with that part's `end`, and a refused part
+rejects with the parts before it already played. Another `speak` you call
+while such a line plays is not held behind its later parts. Either way, on
+`catch` keep the words on screen; don't speak the same text again. An
+`as: 'canvas'` line counts each part toward the eight-line cap below, so keep
+narration to a page at a time; a Sprout-voiced line holds one place at a time,
+but a full queue can refuse a later part mid-line.
+A newer `interrupt` line cuts off the part that is playing. The kid host still
+plays the rest of the older split line, ahead of the newer line's own later
+parts; the parent preview host drops the older line's waiting parts (they
+settle as spoken without playing), so the two lines never interleave.
+To replace a long `as: 'canvas'` line, `await sprout.tts.stop()` first.
+`interrupt` and `replaceKey` apply to the first part only, and the later parts
+of an `as: 'canvas'` line that interrupts wait their turn (`mode: 'queue'`) so
+they don't cut each other off. A host that refuses
+a line says why: `speak` rejects with an `Error` whose message names the
+reason (`tts.speak: text is over 500 characters`, `tts.speak: invalid payload
+(CAPABILITY_INVALID_PAYLOAD)`), so `catch` it and keep the words on screen.
+
+**Lines queue; they don't cut each other off — for a family on the ordinary
+Sprout voice path.** On the kid's device your lines go into one speech queue
+that Sprout's own lines share, and play one at a time. You don't need a queue
+of your own, and you don't need to guess how long a line takes. What you can
+rely on:
+
+<!-- speech-queue-claims:start (guarded by apps/child/test/services/audio/speech-queue.doc-contract.test.tsx — every bullet below must match a claim that test drives through the real kid-device speech queue, and each claim must still be here) -->
+
+- **Your** lines play in the order you called `speak`, whatever order their
+  audio is ready in. That order is per speaker, not across speakers: while one
+  of your lines is still being prepared, a line Sprout or another canvas
+  already has ready may play ahead of it. Never time your UI to how your lines
+  interleave with Sprout's.
+- A new line waits for the one playing to finish.
+- Pass `interrupt: true` when a line must be heard now: it cuts off **your
+  own** line that is playing and goes ahead of your other waiting lines, which
+  still play after it. It never cuts off Sprout's own line or another canvas's
+  line, and never drops a line they already had waiting.
+- Pass `as: 'canvas'` and the line is your canvas speaking as itself: it plays
+  through the same queue and player, but Sprout's mouth never moves for it and
+  he does not pop in to say it.
+- A line with `mode: 'interrupt'` (the default for `as: 'canvas'`) cuts off
+  whatever line is playing, Sprout's own included, and that line is dropped:
+  it is never played again. Yours plays next, and every other waiting line
+  keeps its place behind it, except an earlier `interrupt` line of yours
+  still being prepared: that one is dropped and never plays, so a newer tap
+  is never stuck behind one whose audio is slow to come. A line replaced this
+  way answers like any superseded line: `speak` is acknowledged, then its
+  `tts.line` reports `dropped`. Your `essential` lines are the exception: one
+  still being prepared is replaced only by a newer `essential` line, and one
+  playing is cut only by a newer `essential` line — a newer line that is not
+  `essential` waits and plays after it. Only one waits there: a newer one
+  replaces it, and the replaced one never plays. If every line must sound, mark the
+  one that matters `essential`.
+- A line with `mode: 'over'` plays at once, alongside whatever is playing:
+  Sprout's line goes on, turned down while yours plays and back up after. Your
+  `over` lines play one at a time, in the order you called `speak`.
+- Cutting in on Sprout is rationed: once canvas lines have cut him off or
+  spoken over him for 20 seconds of any minute, a new `over` or `interrupt`
+  line plays as `queue` instead — it still plays, after him, and `speak` does
+  not reject. Already admitted lines are never cut short or downgraded for it,
+  so this limits new reservations, not total playback or microphone pause time.
+- At most eight of your lines can wait at once, counted across every `mode` —
+  `over` and `interrupt` lines included; past that, `speak` rejects with
+  `tts.speak: too many lines queued`.
+- While the kid records a proof video with sound, the queue holds every line —
+  `over` and `interrupt` lines too — nothing plays and nothing is dropped —
+  and plays them in order afterwards, so no line lands in the recording.
+- Lines waiting when the app goes to the background are dropped.
+- A line whose `speak` rejected never plays.
+- With VoiceOver on, only your lines marked `essential: true` play: every other
+  line of yours is dropped before it plays, so Sprout never talks over the
+  screen reader. Sprout's own replies still speak, and a line already playing
+  when VoiceOver turns on finishes.
+
+<!-- speech-queue-claims:end -->
+
+**During a call with Sprout, Sprout's lines are said by the call.** A live
+call holds the phone's audio, so a line that would wait its turn behind it is
+not played on the phone. An `as: 'sprout'` line goes to the call instead:
+Sprout says it on the call, in his own words, at his next free moment, never
+over the kid. `speak` resolves `{ spoken: false, reason: 'call_says' }`
+(`SproutTtsNotSpokenResult`): the phone didn't play your line, the call will
+say it. Don't speak it again, and don't wait on it: its wording and timing are
+the call's, so a line the kid must hear word for word (a listening task's
+target) belongs in a short `as: 'canvas'` line instead (below). When the call
+can't take the line (an older app or worker, or a call that doesn't read this
+canvas), and for an `as: 'canvas'` line with `mode: 'queue'` that can't play,
+`speak` resolves `{ spoken: false, reason: 'audio_held' }` instead: nobody will
+voice the line; don't retry in a loop. Neither ever rejects, carries a
+`lineId` or fires `onEnded`. Every existing `{ spoken: true, ... }` result is
+unchanged; these shapes are additive. For an `as: 'sprout'` line refused with
+`audio_held` by a live call on this canvas, the kid's phone shows the words
+instead, silently, in Sprout's own speech bubble over the canvas, and the
+answer says so: `{ spoken: false, reason: 'audio_held', shown: true }`. Don't
+draw your own caption for a line answered `shown: true`. A newer line replaces
+the older one in the bubble, which hides itself after a short read and clears
+when the call ends. An `as: 'canvas'` line is never shown, and neither is any
+line on a host that predates `shown` or could not put the bubble up, nor a
+`call_says` line (the call voices it). With no `shown`, nothing was shown: use
+`audio_held` as your cue to show the words yourself if your canvas wants them
+read (and never for a listening task's target).
+A line that was already waiting behind your earlier lines when the call refused
+it ends `'failed'` instead (see End of speech). `over` and `interrupt` lines
+still sound during a call, as described in Speaking as the canvas.
+
+**A short `as: 'canvas'` line still plays during a call.** A line your canvas
+speaks as itself that would wait behind the call (`mode: 'queue'`, or an
+`over` / `interrupt` line run as `queue` once the 20-second budget is spent)
+plays by briefly giving it the call's audio, when its audio is **4 seconds or
+shorter**. It waits for a quiet moment: never while Sprout is talking or about
+to, and never while the kid is talking. The call's microphone is off while it
+plays and for a moment after, so Sprout never hears your line. Sprout's
+reply is held silent while it plays, and whatever that cuts is dropped, not
+played later. Nothing on screen changes, and the call carries on
+as it was, with the kid's own mute untouched. During a call, `speak` for an
+`as: 'canvas'` line answers `{ spoken: true, lineId }` only once the line
+actually starts sounding, never before, so it can take a few seconds longer
+to answer. It answers `{ spoken: false, reason: 'audio_held' }` instead when
+the line never plays: it is longer than 4 seconds, no quiet moment comes
+within 3 seconds, your canvas asks for another `as: 'canvas'` line while
+this one is still waiting (the newer line replaces it), or it is still
+waiting behind your earlier lines when `speak`'s own time runs out. A line
+of yours the call refuses never holds up the lines behind it. Keep a
+listening task's target sound in its own short line so it can be heard.
+
+**Marking a line `essential`.** A line dropped because VoiceOver is on ends
+**dropped** host-side, exactly like a line `sprout.tts.stop()` drops — but
+today that is invisible to your canvas: `speak()`'s promise still resolves
+`{ spoken: true }` for a dropped line, the same as one that actually played
+(V1's acknowledgement-only contract — see "The buddy lives in the host shell"
+below). There is no opt-in and no separate signal for "did this line actually
+sound"; do not rely on `speak()` resolving as proof a line played.
+Mark a line `essential` only when the kid can't do the task without hearing it
+(a spoken word they must repeat, say); VoiceOver already reads everything on
+screen, so an ordinary intro or hint should stay unmarked. The web preview has
+no screen reader check.
+
+**None of the above holds for a family whose voice runs on Sprout's live
+VoiceBus rollout.** `stageVoiceRollout: live` is a server-side flag, off by
+default per family — Sprout turns it on per family, your canvas never sees it
+or asks for it. Under it, unless your canvas discloses microphone use (which
+always stays on this queue), `speak` skips every rule above: your line goes
+out the moment it's ready and cuts off your own line still playing, there is
+no eight-line cap, no proof-capture hold, and `speak` resolves `{ spoken: true
+}` with no `lineId`. A line with `as: 'canvas'` is the exception: it always
+takes this queue, under every rollout. So is any line asked for during a live
+call: it takes this queue too, and is said by the call (`call_says`) or refused (`audio_held`) as above. Tracked as SPR-6793, which will route that rollout
+through this same queue; until then, don't build UI for a canvas that might
+run under it that depends on the cap, the hold, or `interrupt` only cutting
+off your own line. The VoiceOver `essential` rule above is asked on this path
+too (CS-E2c) — it is not one of the rules this rollout skips.
+
 **The buddy lives in the host shell, not in your canvas. Your canvas never
-receives, plays, or controls any audio — it sends text and gets back a single
-acknowledgement bit.** A resolved `{ spoken: true }` means the request crossed
-the host's governed boundary and was accepted; it does **not** guarantee the kid
-actually heard anything (synthesis can fail silently on the host). Never treat
-`speak` resolving as "the audio played" — keep your on-screen content the source
-of truth and let the voice be an enhancement on top.
+receives, plays, or controls any audio — it sends text and gets back an
+acknowledgement.** On the kid's device `speak` now settles when the line
+**ends** — see [End of speech](#end-of-speech--speak-settles-when-the-line-ends-spr-6719)
+below. Where a host only acknowledges at accept (older apps, the web preview,
+the parent app), a resolved `{ spoken: true }` means the request crossed the
+host's governed boundary and was accepted, nothing more. Either way, keep your
+on-screen content the source of truth and let the voice be an enhancement on
+top.
 
 This is a request to the host buddy, not a Web Speech / `<audio>` API:
 
-- **Send only `text`.** The wire contract is `{ text }` — a non-empty string (it
-  is trimmed). The type also lists `voice?`, `rate?`, and `lang?` for
-  forward-compatibility, but V1 ignores them: on the kid's device the host
-  forwards only `text`, so passing extra keys is harmless but has **no effect**
-  (it does **not** reject). Send `{ text }` and don't rely on the others.
-- The buddy always speaks in its default Sprout voice for now.
+- **Send `text`, plus `interrupt`, `essential`, `as`, `mode`, `voice` and
+  `replaceKey` when you need them.** The wire contract is
+  `{ text, interrupt?, essential?, as?, mode?, voice?, replaceKey? }` — `text`
+  a non-empty string (it is trimmed), `interrupt` and `essential` each exactly
+  `true` or left out, `as` / `mode` / `voice` as in
+  [Speaking as the canvas](#speaking-as-the-canvas-spr-7456), and
+  `replaceKey` as below. The type also
+  lists `rate?` and `lang?` for forward-compatibility, but V1 ignores them, as
+  it ignores `voice` on a Sprout line: passing those is harmless but has **no
+  effect** (it does **not** reject). Don't rely on them.
+- Sprout's lines always speak in the kid's own Sprout voice; only
+  `as: 'canvas'` lines take a `voice`.
+- **`replaceKey` (SPR-7926)** names a line that only matters while it is
+  current, such as a running "what's left" sentence. Within your canvas, a
+  newer line with the same `replaceKey` replaces an older one that is still
+  waiting its turn: the older line is dropped and never plays. A line that has
+  made no sound yet counts as waiting, including one held behind a capture
+  (see **Held lines** below). A line already playing is never cut off.
+  The key works for either speaker, so key your default `as: 'sprout'` lines
+  too: `sprout.tts.speak({ text: '2 left', as: 'sprout', mode: 'queue', replaceKey: 'progress' })`.
+  Only the lines Sprout says on his own (not the `as: 'sprout'` lines you
+  send) and other canvases' lines are never touched. Replacement applies
+  within one `mode`: a line whose `mode` the host changes (for example an
+  `'over'` line it plays as `'queue'` once your yield budget is spent) may not
+  replace an earlier one. A keyed line always waits its turn in the speech
+  queue, so on a call it is not voiced (see **During a call with Sprout**
+  above). On an
+  opted-in canvas (see End of speech) the replaced line's `speak()` **rejects**
+  with `err.reason === 'dropped'`, so always `catch` a keyed line. It is 1 to
+  32 characters of `a`-`z`, `0`-`9`, `_` and `-`; anything else rejects the
+  call (`` tts.speak: invalid `replaceKey` ``). A host that predates it plays
+  every line, so never rely on it to keep a line from playing.
 - `speak` **rejects** (it does not resolve to an error shape) on: empty or
   whitespace-only `text` (rejected before the host governs the call — on-device
-  message `tts.speak: invalid payload`); no host response within 10s (a timeout
-  `Error`); or a host / network failure (an `Error`). Always `await` it inside
-  `try / catch`.
+  message `tts.speak: invalid payload`); an unknown `as`, `mode` or (with
+  `as: 'canvas'`) `voice`, an invalid `replaceKey`, or `mode: 'over'` / `'interrupt'` without
+  `as: 'canvas'` (``tts.speak: unknown `voice` `` and the like — nothing
+  is spoken); more than eight of your lines already
+  waiting (`tts.speak: too many lines queued`); no host response within 10s (a
+  timeout `Error`); or a host / network failure (an `Error`). Always `await` it
+  inside `try / catch`.
+- On the kid's device `speak` settles at **end of speech**, not at accept —
+  see [End of speech](#end-of-speech--speak-settles-when-the-line-ends-spr-6719)
+  below for the full outcome table, the 30s/2x-length safety deadline, and how
+  to opt in to rejections. A host that only acknowledges at accept (older
+  apps, the web preview, the parent app) instead resolves once it has
+  **prepared** the line — synthesized its audio and handed it to the queue,
+  or, when no audio came back, let the line go — which is after a network
+  round trip and says nothing about when the line plays or finishes; if that
+  host cannot prepare it in time, it gives the line up and `speak` rejects
+  shortly before the 10s timeout, and that line never plays. Feature-detect
+  with `sprout.tts.endOfSpeech` to know which behavior you are getting, rather
+  than assuming either.
 - In the **web preview**, the host voices the same text with the browser's
   English speech engine and returns the same acknowledgement-only shape. The
   preview never gives the Canvas audio bytes or a URL. Browser speech is a flow
   check, not a voice-quality substitute for the real Sprout buddy on device. If
   the browser has no speech engine, the request rejects immediately with an
-  `unsupported` error, so keep the on-screen line as the source of truth.
+  `unsupported` error, so keep the on-screen line as the source of truth. The
+  preview does not queue yet: there a new line still replaces the one playing,
+  so check line order on a device. The preview also ignores `as`, `mode` and
+  `voice` — every line speaks in the browser voice — so check canvas voices
+  and modes on a device too.
 - There is nothing to declare — just call `sprout.tts.speak({ text })`. Canvas
   authors do not declare capabilities; the host governs the call for you.
+
+### Speaking as the canvas (SPR-7456)
+
+By default every line is Sprout's: his voice, his mouth, his turn in the
+queue. Pass `as: 'canvas'` and the line is **your canvas speaking as itself** —
+a narrator, an animal sound, a character — in a canvas voice, and Sprout's
+mouth never moves for it. Then pick, line by line, how it meets whatever
+Sprout is saying:
+
+| `mode`                                         | What happens to Sprout                                                                                                                                 | Use it for                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `'interrupt'` (the default for `as: 'canvas'`) | The line he is saying is cut off and **dropped** — he does not say it again. On a live call, his reply is silenced while your line plays, and is lost. | A sound that must land now: the cow's "mooooo" the kid just tapped. |
+| `'over'`                                       | He keeps talking, turned down while your line plays, back up after.                                                                                    | Sound that accompanies him: a narrator's aside, an ambient voice.   |
+| `'queue'`                                      | Nothing: your line waits its turn behind his, like his own lines.                                                                                      | A character line that must not step on him.                         |
+
+```js
+// The cow, now.
+await sprout.tts.speak({ text: 'Mooooo!', as: 'canvas', voice: 'ballad' });
+// A narrator under Sprout.
+await sprout.tts.speak({ text: 'Long ago…', as: 'canvas', mode: 'over' });
+```
+
+- **`voice`** is one of:
+  <!-- canvas-tts-voices:start (guarded by packages/sprout-canvas/docs/__tests__/canvas-sdk-tts-voices.test.ts — must equal CANVAS_TTS_VOICES in src/messages.ts) -->
+  `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`,
+  `marin`, `cedar`
+  <!-- canvas-tts-voices:end -->
+  — the same OpenAI voices, on the same synthesis path, as Sprout's own. Leave
+  it out and the host picks one that is not the kid's Sprout voice. Any other
+  value rejects the call: there is no way to name an arbitrary voice. One of
+  these may be the voice the kid chose for Sprout; pick a different one if
+  your character must not sound like him.
+- **Sprout always speaks with `mode: 'queue'`.** `mode: 'over'` or
+  `'interrupt'` without `as: 'canvas'` rejects the call.
+- **`sprout.tts.stop()` drops your lines in every mode**, and only yours.
+  Sprout comes back up the moment an `over` line of yours stops.
+- **A canvas line never takes the microphone and never ends a call.** On a
+  live call with Sprout, the call stops listening while an `over` or
+  `interrupt` line of yours plays, and listens again a moment (200 ms) after
+  it ends — so Sprout never hears your line, or its last sound, as if the kid
+  had said it. The kid can't talk
+  over your line meanwhile: keep these lines short. While the kid records a
+  proof video with sound, your line is held like every other one and plays
+  after the take.
+- `interrupt: true` (above) is separate: it only ever cuts off **your own**
+  playing line, in whichever mode your lines play.
 
 ### `sprout.tts.stop(): Promise<void>` — Released
 
 Stop the buddy if it is currently speaking — e.g. when the kid moves to the next
-question or your screen unmounts. Resolves with `void` and is best-effort: wrap
-it in `try / catch` and don't block your UI on it. A failed or late `stop` just
-means the current utterance may finish playing on its own.
+question or your screen unmounts. It drops **your** lines, the one playing and
+every one still waiting, in every `mode`; Sprout's own lines are not yours to
+stop and carry on (and one you were speaking `over` comes back up at once).
+Resolves with `void` and is best-effort: wrap it in `try / catch` and don't
+block your UI on it. A failed or late `stop` just means the current utterance
+may finish playing on its own.
 
 **Never gate `ready` on speech.** If you use `speak` for a boot-time greeting,
 call it AFTER your document is otherwise ready — never inside a
@@ -540,18 +800,35 @@ canvas written as `begin()` → `await speak()` → `.ready()` therefore reaches
 behalf: a barrier that also waits on other work
 (`Promise.all([loadAssets(), speak()])`) still waits for that work. In that
 window a host-side failure of the request is not reported to the caller.
-Once `ready` has fired, `speak()` resolves with the host's real
-acknowledgement as usual.
+Once `ready` has fired, `speak()` settles as documented below — at end of
+speech on a host that reports it, or at accept where it does not.
 
 ```ts
 type SproutTtsSpeakOptions = {
-  text: string; // required, non-empty — the ONLY field that has effect in V1
-  voice?: string; // reserved for a future release; ignored today (host strips it)
-  rate?: number; //  reserved for a future release; ignored today (host strips it)
-  lang?: string; //  reserved for a future release; ignored today (host strips it)
+  text: string; // required, non-empty — the words to speak
+  interrupt?: boolean; // true: cut off YOUR playing line, go ahead of YOUR waiting lines (default: wait your turn)
+  essential?: boolean; // true: still speaks while VoiceOver is on (default: dropped under VoiceOver)
+  as?: 'sprout' | 'canvas'; // who speaks (default 'sprout'); see Speaking as the canvas
+  mode?: 'queue' | 'over' | 'interrupt'; // how the line meets Sprout; 'sprout' lines take only 'queue' (default 'queue' for 'sprout', 'interrupt' for 'canvas')
+  voice?: SproutCanvasTtsVoice; // with as: 'canvas', one of the listed canvas voices; ignored on a Sprout line
+  rate?: number; //  reserved for a future release; ignored today
+  lang?: string; //  reserved for a future release; ignored today
 };
 
-type SproutTtsSpeakResult = { spoken: true }; // acknowledgement only — never audio
+type SproutTtsSpeakResult = {
+  spoken: true; // acknowledgement only — never audio
+  lineId?: string; // the host queue's opaque id for this line; absent on older hosts
+  end?: 'ended' | 'timeout' | 'interrupted' | 'dropped' | 'failed'; // see End of speech, below
+};
+
+// What speak resolves with instead when the phone did not play the line.
+type SproutTtsNotSpokenResult = {
+  spoken: false;
+  // 'audio_held': a call holds the audio, and nobody will voice the line; don't retry in a loop.
+  // 'call_says': a call holds the audio, and the call says the line in Sprout's own words.
+  reason: 'audio_held' | 'call_says';
+  shown?: true; // the host showed an as: 'sprout' line's words in Sprout's bubble; draw no caption
+};
 ```
 
 Example:
@@ -563,7 +840,7 @@ Example:
 <script>
   document.getElementById('hint').onclick = async () => {
     try {
-      // Send ONLY text. `spoken: true` means the buddy got the request — not a
+      // A Sprout line needs only text. `spoken: true` means the buddy got the request — not a
       // guarantee the kid heard it — so keep the hint visible on screen too.
       await sprout.tts.speak({ text: 'Try counting the apples one by one.' });
     } catch {
@@ -584,13 +861,127 @@ Example:
 </script>
 ```
 
+### End of speech — `speak` settles when the line ends (SPR-6719)
+
+**Released on the kid's device.** `sprout.tts.speak()` used to resolve the
+moment the host _accepted_ the line, so narrated canvases guessed how long a
+line lasted (about 320 ms per word) before speaking the next one. On a host
+that reports the end of speech, the promise now settles when the line is
+actually over:
+
+| Outcome         | `speak` promise (opted-in canvas)                   | Meaning                                                                                                                                         |
+| --------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'ended'`       | resolves `{ spoken: true, lineId, end: 'ended' }`   | The audio finished playing.                                                                                                                     |
+| `'timeout'`     | resolves `{ spoken: true, lineId, end: 'timeout' }` | The host never reported an end in time; the SDK resolved rather than hang. Treat as `'ended'`.                                                  |
+| `'interrupted'` | rejects, `err.reason === 'interrupted'`             | A newer `speak`, or another voice the host prioritised, cut the line off.                                                                       |
+| `'dropped'`     | rejects, `err.reason === 'dropped'`                 | The host discarded the line: `sprout.tts.stop()`, the canvas leaving or backgrounding, or a newer line with the same `replaceKey` replacing it. |
+| `'failed'`      | rejects, `err.reason === 'failed'`                  | Synthesis or playback failed — offline, a provider error, a clip that would not load.                                                           |
+
+**Rejections are opt-in.** A canvas opts in the first time it reads
+`sprout.tts.endOfSpeech` or registers `sprout.tts.onEnded(cb)` — either one
+proves it was written for this protocol. A canvas that has done neither was
+written for the old accept-time resolve, which never threw for a cut-off line,
+so it is never thrown at: `'interrupted'`, `'dropped'` and `'failed'` **resolve**
+`{ spoken: true, lineId, end: '<reason>' }` instead. The flag is
+non-enumerable, so logging or serialising `sprout.tts` does not opt in by
+accident. The choice is fixed per line when `speak` is called: a line already
+in flight when you opt in keeps resolving, and only later lines can reject.
+
+`lineId` is an opaque id the host assigns when it accepts the line; it carries
+no text, audio or identity. Request-level failures (empty text, a refused call,
+no accept within 10 s) still reject with a plain `Error` that has no `reason`.
+
+**Never hangs.** Every line has a safety deadline: the longer of **30 s** and
+**twice the line's length** (a words-based estimate from the text, replaced by
+the clip's real duration once playback starts). At the deadline `speak`
+**resolves** with `end: 'timeout'` — it never rejects for lateness, so a
+canvas that awaits `speak` always moves on.
+
+**Held lines.** A live call with Sprout does not hold a queued line: it
+resolves `{ spoken: false, reason: 'call_says' }` (the call says a Sprout line)
+or `{ spoken: false, reason: 'audio_held' }` (see **During a call with
+Sprout**), or ends `'failed'` if it was already waiting behind your earlier
+lines. A line spoken while a camera or microphone capture owns the
+audio is **held**: its promise stays pending, and the line plays when the
+capture releases — then `ended` (or another outcome) follows as usual. While
+held, the length-based deadline is replaced by a **10-minute ceiling** (a hold
+that never releases still resolves `end: 'timeout'`); on release the
+length-based deadline starts again, so a line that never gets to play still
+settles. **A held line is never replaced by a later `speak()` without a
+`replaceKey`.** An ordinary request queues behind it; one with
+`interrupt: true` only jumps ahead of it in turn order — interrupting cuts off
+the same canvas's line that is actually _playing_ right now, never one still
+waiting on a hold. Only a newer line with the same `replaceKey` (a held line
+has made no sound, so it still counts as waiting), `tts.stop()`, the canvas
+leaving, or the host otherwise dropping it removes a held line without playing
+it, and it then ends `'dropped'`.
+
+**Feature-detect, then drop your estimator.** `sprout.tts.endOfSpeech === true`
+on runtimes that can wait for the end; older apps do not have it, and there
+`speak` resolves at accept, so keep your per-word estimate as the fallback.
+Even with the flag, a result with no `end` field means this particular host
+acknowledged at accept (the web preview and the parent app do today) — fall
+back to the estimate for that line too:
+
+```js
+const estimateMs = (text) => text.split(/\s+/).length * 320;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Reading the flag feature-detects AND opts in to rejections.
+const endOfSpeech = sprout.tts.endOfSpeech === true;
+
+async function say(text) {
+  if (!endOfSpeech) {
+    // Older app: speak resolves at accept, so estimate the line's length.
+    try {
+      await sprout.tts.speak({ text });
+    } catch {
+      /* the on-screen line is the source of truth */
+    }
+    await wait(estimateMs(text));
+    return;
+  }
+  try {
+    const result = await sprout.tts.speak({ text });
+    if (!result.end) await wait(estimateMs(text)); // host acknowledged at accept
+  } catch (err) {
+    // 'interrupted' / 'dropped' / 'failed': the line is over either way.
+    if (!err.reason) await wait(estimateMs(text)); // a request error — nothing was queued
+  }
+}
+
+async function intro() {
+  await say('Watch me trace the letter A.');
+  await say('Now you try!'); // starts only after the first line has finished
+}
+```
+
+**`sprout.tts.onEnded(cb)`** hears every line's `{ lineId, outcome }` (the
+five outcomes above) and returns an unsubscribe. It also hears lines whose
+`speak` promise resolved early because a `sprout.loading` barrier was open
+(see "Never gate ready on speech" above — that rule is unchanged: while a
+barrier is open, `speak` still resolves `{ spoken: true }` at once). Guard it
+with `endOfSpeech`.
+
+**Existing canvases on a new app.** Nothing to change, and nothing new
+throws. One behaviour moves: a canvas that `await`s `sprout.tts.speak(...)`
+**before rendering** (after `ready`) now waits until the buddy has finished
+speaking — or was cut off — not just until the host accepted, up to the safety
+deadline. Render first, then speak, or do not `await` a line you do not need
+to sequence on. A cut-off, dropped or failed line resolves with its `end`
+reason, exactly as the old accept-time resolve never threw (see "Rejections
+are opt-in" above).
+
 ---
 
 ## Rive animations — `sprout.rive` — Released
 
 Rive is the one sanctioned WASM runtime inside a canvas. Use it for rich
 vector animation, interactive characters, and state-machine-driven motion (a
-mascot that reacts, a scene that responds to a kid's progress). The runtime
+character that reacts, a scene that responds to a kid's progress).
+
+**Never Sprout.** Sprout is drawn by the app around the canvas; a canvas never
+renders Sprout or any Sprout art, so it never resolves `'sprout-mascot'`. The runtime
 itself is `@rive-app/canvas` — an ordinary browser JS library you load through
 the canvas-CDN proxy and drive with its own public API. `sprout.rive` is the
 thin Sprout seam around it: it **resolves an asset** to a same-origin URL and
@@ -647,7 +1038,7 @@ freely. These three modes are how you get an asset to animate — pick whichever
 fits, mix them:
 
 - **Mode A — curated-by-reference.** Load a first-party Sprout `.riv` by its
-  catalog id (e.g. `'sprout-mascot'`, `'village-scene'`). Served same-origin by
+  catalog id (e.g. `'village-scene'`; never `'sprout-mascot'`). Served same-origin by
   story `-b`; no upload, no bytes in your tool call. The fastest path and the
   one the pilot uses.
 - **Mode B — bring-your-own `.riv`.** Carry your own `.riv` as a canvas bundle
@@ -684,10 +1075,11 @@ behavior. `sprout.rive` plays no part here — this is plain Rive:
   async function startRive() {
     try {
       // Mode A — resolve a curated asset to its same-origin URL.
-      const asset = await sprout.rive.resolveAsset('sprout-mascot');
+      const asset = await sprout.rive.resolveAsset('village-scene');
       const r = new window.rive.Rive({
         src: asset.url, // the resolved same-origin URL — never a .wasm URL
         canvas: document.getElementById('stage'),
+        artboard: 'Village-character',
         autoplay: true,
         stateMachines: 'State Machine 1',
         onLoad() {
@@ -928,6 +1320,22 @@ bridge, and stops every tracked microphone stream when the Canvas backgrounds,
 closes, or loses the capability. Canvas code must handle permission denial and
 must request a fresh stream after returning from the background.
 
+The iOS child host can also **suspend** the Canvas microphone while a call or a
+proof recording needs the device microphone. Suspension stops every tracked
+stream, like a background trip, but the page stays visible, so the host tells it
+directly with a `sprout-microphone` window event. Request a fresh stream when it
+reports `available`:
+
+```js
+window.addEventListener('sprout-microphone', async (event) => {
+  if (event.detail.status === 'suspended') showMicPaused();
+  if (event.detail.status === 'available') {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    startListening(stream);
+  }
+});
+```
+
 Microphone permission does not change the approved Canvas execution contract.
 The exact version may lazy-load same-origin bundle assets and host-routed,
 pinned Canvas-CDN or curated Rive dependencies, and it may keep using declared
@@ -969,9 +1377,10 @@ permission. Never add `allow-same-origin` to that ordinary `srcDoc` path.
 A read-out-loud canvas needs to know what the child said. `sprout.speech` runs
 the phone's own recognizer (`SFSpeechRecognizer` with on-device recognition
 required) and hands the canvas **words** — text, a confidence, and where in the
-take each was heard. Transcription never leaves the phone: the host never falls
+take each was heard. Transcription runs on the phone: the host never falls
 back to a networked recognizer, and a device without the on-device model for the
-language is told `on_device_unavailable` instead.
+language is told `on_device_unavailable` instead. The words it makes are then
+saved to Sprout with the canvas, together with the recording (below).
 
 **The host also records the take.** On a task-linked run the child app records
 the child's voice for the length of each take (AAC, mono, at most ten minutes)
@@ -1004,6 +1413,33 @@ canvas: there is no ordering, no retry, and no permission a child can grant
 that gets both, and a canvas declaring both ships with a speech feature that is
 dead on the device.
 
+**During a call with Sprout, `listen` runs alongside the call.** The exclusion
+above covers the canvas's own live microphone, and it stands. It does not
+extend to Sprout's call. When the child is on a live call with Sprout and the
+call is capturing, `listen` does not take the microphone from the call and does
+not pause it. The child host feeds the same on-device recognizer from the
+call's own microphone capture, so there is one microphone, and Sprout's call
+hears the child read as well as the recognizer does. Nothing else changes for
+the canvas: the words are made on the phone exactly as they are without a call,
+and the recording and the words are saved to Sprout with this canvas exactly as
+described above, under the same parent approval. While a call is on, never tell
+the child that only the phone hears them, or write copy such as "only your phone
+hears you": Sprout's call hears the reading too. `listen`, `poll`, `stop`, the
+cursor and the clock behave the same. Plan for three differences:
+
+- The take ends `stopped` as soon as the call stops capturing: the call ends
+  or drops, the child mutes it, another canvas's live microphone pauses it, or a
+  proof capture takes the microphone. It also ends `stopped` if the call's
+  capture stops delivering sound while it still reads as live; the next
+  `listen` in that call then opens the microphone itself, as without a call,
+  and the call waits until that take ends. Offer "carry on" as after a
+  background.
+- `level` reads the call's microphone after echo cancellation, so Sprout's own
+  voice does not count as the child's.
+- A call that is connected but not capturing (the child muted it) does not
+  take this path. The take opens the microphone itself, as without a call, and
+  the call waits until the take ends.
+
 Declared by the exact executable call `sprout.speech.listen(...)`, written
 literally in an inline executable `<script>` in `index.html`. Optional chaining
 (`sprout.speech?.listen(...)`) still derives; an **alias** (`const s =
@@ -1029,7 +1465,8 @@ derives both the `MICROPHONE_INPUT` and the `SPEECH_TRANSCRIPT` disclosure, so
 adding it to a canvas that only used the microphone before changes that
 canvas's disclosure set and sends it back through approval rather than
 inheriting the old one. Write your own on-screen copy to match: do not tell the child or the parent that
-their reading is not recorded, or that the words disappear.
+their reading is not recorded, or that the words disappear, and during a call
+do not tell them that only the phone hears the reading.
 
 ```html
 <button id="done" type="button">I finished reading</button>
@@ -1188,6 +1625,17 @@ session's onto it — the worked example's `sessionBaseMs`, added in
 rejects with a `TypeError` rather than poll from cursor zero and hand back every
 settled word a second time. Pass the cursor as `{ since: 4 }`.
 
+### `sprout.speech.passage({ text, file? }): Promise<{ status: 'recorded' | 'unsupported' }>` — Feature-gated
+
+Names a page the child was handed, before they read it, so Sprout can work out
+how much of the passage they read. `text` is the page as drawn. `file` is the
+bundle file that holds it, relative to the canvas; leave it out for text in
+`index.html`. Sprout checks every page, word for word, against the approved
+canvas, so a page that isn't in it counts for nothing. It rides the
+`speech.listen` declaration and never rejects: `unsupported` is an older host,
+and the reading goes on. Call it with optional chaining
+(`sprout.speech.passage?.(…)`).
+
 ### `sprout.speech.stop(): Promise<{ status: 'stopped' }>` — Feature-gated
 
 Ends the take. Idempotent — an already-stopped or never-started session still
@@ -1315,10 +1763,13 @@ const plan: ActivityVerificationPlanV1 = {
 
 The server compiles and freezes the closed verification profile.
 
+<!-- count-me-audio-policy-claim:start (guarded by apps/server/test/unit/activity-count-me-sdk-audio-policy.test.ts — the audio-required/prohibited claim below is compared against countMeProfileAudioPolicy, and the clap timing clause against the real judge prompt bytes) -->
 
 Counted V1
 profiles are `repetition_v1` (audio prohibited — the general countable-activity
-archetype), `piano_passage_repetition_v1` (audio required) and
+archetype; where a deployment records Count Me sound, `FEATURE_ACTIVITY_VIDEO_VERIFICATION_V1`,
+its plans carry audio required instead, and that sound is recorded but never
+judged by loudness), `piano_passage_repetition_v1` (audio required) and
 `hand_clap_repetition_v1` (audio required — the visible contact and the
 audible clap transient agree in time), all with targets through 10. The server
 mints the capture budget; a plan can neither weaken nor widen it. The shared
@@ -1329,7 +1780,7 @@ advertises the narrowest of three ceilings, so today it is minted at 10 MiB and
 1. That shared contract budget.
 2. What the ALREADY-INSTALLED child fleet parses
    (`ACTIVITY_VERIFICATION_INSTALLED_HOST_CAPTURE_CEILINGS_V1` in
-   the injected runtime's activity-verification surface). The injected runtime
+   `packages/sprout-canvas/src/activity-verification.ts`). The injected runtime
    ships inside each child bundle and refuses a wider plan rather than clamping
    it, and the counted profiles are reachable by every installed bundle — so
    this ceiling only lifts once a bundle carrying the wider bounds is observed
@@ -1338,9 +1789,10 @@ advertises the narrowest of three ceilings, so today it is minted at 10 MiB and
    denser than the `repetition_v1` reference gets proportionally less duration:
    `hand_clap_repetition_v1` samples at 10fps against the 5fps reference and its
    token budget is 150s, not 300s. See `countMeProfileMaxDurationSeconds` in
-   the host's count-me sampling policy
+   `apps/server/src/services/activity-verification/activity-count-me-sampling.ts`
    for the derivation.
 
+<!-- count-me-audio-policy-claim:end -->
 
 `criteria` and `unit` are AUTHORED on `repetition_v1` — they are what makes one
 profile able to count push-ups, soccer touches or juggling — and are sent to the
@@ -1349,6 +1801,7 @@ specialised profiles the server derives both from the profile and sends neither.
 
 What each one MEANS to a canvas, since the two are easy to swap:
 
+<!-- count-me-field-semantics:start (guarded by apps/server/test/unit/activity-count-me-egress-contract.test.ts — the unit claim is compared against RESPONSE_SCHEMA's real property names) -->
 
 - `criteria` describes **one** repetition in visible terms — the shape the
   verifier looks for and then counts occurrences of. It is not the whole set and
@@ -1364,10 +1817,12 @@ What each one MEANS to a canvas, since the two are easy to swap:
   `${result.observed} / ${check.target} ${check.unit}` from the plan, not from
   anything the model returned.
 
+<!-- count-me-field-semantics:end -->
 
 Exactly these plan fields leave Sprout for verification, beside the recording
 itself and the server's own per-profile counting policy:
 
+<!-- count-me-egress-table:start (guarded by apps/server/test/unit/activity-count-me-egress-contract.test.ts — the rows are compared against the request the server really builds) -->
 
 | Plan field | Where it comes from | Sent for              |
 | ---------- | ------------------- | --------------------- |
@@ -1376,6 +1831,7 @@ itself and the server's own per-profile counting policy:
 | `criteria` | the Count Me check  | `repetition_v1` only  |
 | `unit`     | the Count Me check  | `repetition_v1` only  |
 
+<!-- count-me-egress-table:end -->
 
 Nothing else on the plan does: the authored `instruction`, `captureMode`,
 `audio` and `capturePolicy` are not part of that request, and neither is child
@@ -1439,6 +1895,63 @@ Existing Canvases declare none of these IDs and remain unchanged. Declaration
 alone never enables recording; unsupported combinations must fail preflight
 without entering capture.
 
+### `sprout.activity.recovery(reason)` — video verification feedback in the canvas
+
+Video capture opens the native camera, then returns to the canvas without a
+native outcome screen. Render feedback from the returned status on every ending.
+A V1 pass waiting on a grown-up returns `result.outcome: 'needs_review'`,
+`message: 'activity_needs_review'`, and `retry: { allowed: false }`. Say that the
+recording is with a grown-up; do not celebrate approval, offer another take, or
+call `sprout.complete()` to replace the parent's decision. This applies to live
+verification, reopening a completed check, and `status()` polling. A settlement
+lookup that cannot be read returns `unavailable`, never an assumed approval.
+
+Capture failures return `state: 'unavailable'` with the native `reason` preserved.
+Call `sprout.activity.recovery(status.reason)` to choose the next step. This
+synchronous, local classifier derives from the activity contract's canonical
+recovery policy; do not maintain a second reason allowlist in a canvas.
+
+**Opt-in for the full reason list.** Canvases saved before the reason list
+widened carry a two-reason handler (`permission_denied` and `unavailable` are
+recoverable, everything else is not) and no SDK contract version. To keep them
+working, the runtime collapses every reason other than `unsupported`,
+`capability_not_declared`, `permission_denied` and `unavailable` to
+`unavailable` (still recoverable, as that handler always gave it) unless the
+canvas declares `<meta name="sprout-activity-reasons" content="detailed">`.
+Declare it only when the canvas routes `status.reason` through
+`activityRecovery` (the inline example below shows the tag). The canonical
+templates and examples already do.
+
+Installed apps may predate this SDK method. The canonical templates and example
+below use a generated local `activityRecovery(reason)` adapter: it calls the SDK
+method when present and otherwise executes the same canonical policy embedded
+in the document. Regenerate this block with
+`pnpm exec tsx packages/sprout-canvas/scripts/generate-activity-recovery.ts`;
+`--check` verifies it without writing. Do not hand-edit its reason table.
+
+The result contains `action` and a `feedback` key for localized copy:
+
+- `retry`: explain `feedback` and allow a new capture after the child fixes the
+  stated condition (permission, busy device, light, no running video call, or an interrupted
+  capture).
+- `refresh`: explain that work may still be running and offer a status read,
+  never another capture. A refresh does not call `verify()`. `mic_muted`
+  (feedback `unmute`) is a refresh too: the host holds the take while the
+  call's microphone is muted and starts recording once it is unmuted, so tell
+  the kid to unmute and keep reading `status()`.
+- `parent_review`: say the recording is with a grown-up and retire capture.
+  The host owns this ending; never call `sprout.complete()`.
+- `none`: explain `feedback` without offering another capture. Limits, full
+  submissions, safety stops and unsupported contracts cannot be fixed by
+  immediately repeating the same request.
+
+Use `feedback` to select your localized recovery sentence. The keys are `retry`,
+`permission`, `device_busy`, `wait`, `limit`, `clips_full`, `checking`,
+`parent_review`, `safety`, `more_light`, `start_call`, `unmute`, and `unsupported`. Do not claim that an
+ambiguous cancellation was discarded or that a safety stop was sent.
+Unknown reasons throw instead of guessing that another recording is safe.
+These statuses contain no task, child, attempt, media, or provider identifiers.
+
 ### `read_aloud_v1` — Canvas + camera picture-in-picture recording
 
 The composed read-aloud profile records the visible Canvas, the child's
@@ -1474,7 +1987,52 @@ screen recorder or camera overlay. Treat `unavailable` / `host_unsupported` as
 an authoring-preview state, keep the passage usable, and do not simulate success
 or call `sprout.complete()` as a fallback. On a supported child host,
 `pending_review` means custody and submission attachment are ready; only then
-should the Canvas expose its final completion action.
+should the Canvas expose its final completion action. A reading whose coverage
+completed it answers `verified` instead: nothing is waiting on a grown-up.
+
+The worked example is `docs/examples/read-out-loud-verified.html` — the same
+`sprout.speech` reading experience as `docs/examples/read-out-loud.html`
+(SPR-7070), with the meta declaration and the direct `sprout.activity.verify()`
+call wired into the "Got the book — go" start and the "Done" completion
+action. Start from THIS file for a `read_aloud_v1` task; start from the plain
+one for an ordinary reading task with no video evidence — copying the verified
+file there hands every family a `VIDEO_RECORDING` disclosure they never asked
+for.
+
+#### `sprout.activity.finishTake(options?)` — end the take at the Canvas's own goal
+
+When the task's take records over a video call with Sprout, the take ends on
+its own when the call ends, when the kid leaves the Canvas, or just before the
+plan's duration ceiling. A Canvas that keeps its own goal (a minutes target, a
+last page) ends it there with `sprout.activity.finishTake()`: the host stops,
+seals and sends the take exactly as the call's end does, the call keeps going,
+and the pending `verify()` resolves with the same status.
+
+```js
+async function onMinutesChanged(minutes) {
+  if (minutes < goalMinutes || typeof sprout.activity.finishTake !== 'function') return;
+  const done = await sprout.activity.finishTake();
+  if (done.status === 'stopped' && done.verification.state === 'terminal') showSent();
+}
+```
+
+It resolves with an `ActivityFinishTakeResult`, never a rejection for a refusal:
+
+- `{ status: 'stopped', verification }` — the take was recording (or already
+  stopping, which it joins) and is now stopped. `verification` is what
+  `verify()` resolves with: `terminal` once sealed and sent, `unavailable`
+  when it could not be.
+- `{ status: 'no_take' }` — no take over the call was recording (not started
+  yet, already finished by something else, a photo-proof Canvas, or a take
+  that is not over a call). Nothing is stopped and nothing is started.
+- `{ status: 'unavailable' }` — this host cannot finish a take: `activity.verify`
+  is not declared, the device is not iOS, or this is the browser preview.
+
+Calling it again for the same take answers the same and stops nothing more.
+It rides `activity.verify`'s declaration: it adds no capability and no parent
+disclosure, since it only stops a take the parent already approved. Apps that
+predate it inject no `finishTake`, so feature-detect it as above; without it
+the take ends as before.
 
 Task authors select only the strict intent below. PiP placement, front-camera
 policy, mirroring, required audio, duration/size limits, and attachment target
@@ -1560,13 +2118,56 @@ Persist only the finishing state. The host status ref re-initialises to
 `available` after a WebView remount; without run memory, a retry-exhausted or
 native-handoff ending incorrectly reopens capture.
 
+A canvas that routes `status.reason` through `activityRecovery`, as this one
+does, declares the opt-in in its `<head>`; without it the runtime collapses the
+detailed reasons to `unavailable` and the branches below never run:
+
+```html
+<meta name="sprout-activity-reasons" content="detailed" />
+```
+
 ```js
+// BEGIN GENERATED ACTIVITY RECOVERY
+// prettier-ignore
+var activityRecovery = (function () {
+  var canonicalRecovery = (function () {
+  var policy = {"unsupported":{"action":"none","feedback":"unsupported"},"capability_not_declared":{"action":"none","feedback":"unsupported"},"permission_denied":{"action":"retry","feedback":"permission"},"interrupted":{"action":"retry","feedback":"retry"},"camera_in_use":{"action":"retry","feedback":"device_busy"},"mic_in_use":{"action":"retry","feedback":"device_busy"},"recording_failed":{"action":"retry","feedback":"retry"},"unsafe":{"action":"none","feedback":"safety"},"safety_unavailable":{"action":"retry","feedback":"retry"},"upload_failed":{"action":"retry","feedback":"retry"},"expired":{"action":"retry","feedback":"retry"},"budget_busy":{"action":"refresh","feedback":"wait"},"budget_in_flight":{"action":"refresh","feedback":"wait"},"budget_exhausted":{"action":"none","feedback":"limit"},"routed_to_parent":{"action":"parent_review","feedback":"parent_review"},"safety_blocked":{"action":"none","feedback":"safety"},"safety_blocked_descriptive":{"action":"none","feedback":"safety"},"too_dark":{"action":"retry","feedback":"more_light"},"too_many_clips":{"action":"none","feedback":"clips_full"},"unavailable":{"action":"retry","feedback":"retry"},"cancel_not_confirmed":{"action":"refresh","feedback":"checking"},"no_call":{"action":"retry","feedback":"start_call"},"no_live_video":{"action":"retry","feedback":"start_call"},"mic_muted":{"action":"refresh","feedback":"unmute"}};
+  return function (reason) {
+    if (typeof reason !== 'string' || !Object.prototype.hasOwnProperty.call(policy, reason)) {
+      throw new TypeError('Unknown activity recovery reason');
+    }
+    return Object.freeze({ action: policy[reason].action, feedback: policy[reason].feedback });
+  };
+})();
+  return function (reason) {
+    return typeof sprout.activity.recovery === 'function'
+      ? sprout.activity.recovery(reason)
+      : canonicalRecovery(reason);
+  };
+})();
+// END GENERATED ACTIVITY RECOVERY
 const verifyButton = document.querySelector('#verify');
 const result = document.querySelector('#result');
 const runMemory = sprout.state;
 runMemory.completionReady ??= false;
 runMemory.completionOwner ??= 'canvas';
 let completionSent = false;
+let recoveryAction = null;
+const recoveryMessages = {
+  retry: 'The capture didn’t finish. Try again when you’re ready.',
+  permission: 'Ask a grown-up to turn on camera and microphone access, then try again.',
+  device_busy: 'Close what is using the camera or microphone, then try again.',
+  wait: 'Wait a little, then check again.',
+  limit: 'That’s all the checks for now. Come back later.',
+  clips_full: 'You already have all the clips for this activity.',
+  checking: 'Your recording may still be checking. Check again before starting another.',
+  parent_review: 'Your recording is with a grown-up.',
+  safety: 'The capture was stopped for safety. It’s not your fault. Ask a grown-up for help.',
+  more_light: 'Move somewhere brighter, then try again.',
+  start_call: 'Start a video call with Sprout, then try again.',
+  unmute: 'Your microphone is muted. Unmute it so Sprout can hear you.',
+  unsupported: 'This activity check can’t run here. Ask a grown-up for help.',
+};
 
 function photoProofDecision(proof) {
   if (proof.outcome === 'verified') return 'finish-canvas';
@@ -1592,6 +2193,7 @@ function showFinishing(message, owner = 'canvas') {
 }
 
 function render(status) {
+  recoveryAction = null;
   if (runMemory.completionReady === true) {
     showFinishing(
       'This part is finished.',
@@ -1625,10 +2227,17 @@ function render(status) {
     verifyButton.textContent = 'Try again';
     return;
   }
-  const recoverable = status.reason === 'permission_denied' || status.reason === 'unavailable';
+  const recovery = activityRecovery(status.reason);
+  if (recovery.action === 'parent_review') {
+    showFinishing('Your recording is with a grown-up.', 'host');
+    return;
+  }
+  // recoveryMessages is this canvas's localized copy keyed by feedback.
+  result.textContent = recoveryMessages[recovery.feedback];
+  recoveryAction = recovery.action;
   verifyButton.hidden = false;
-  verifyButton.disabled = !recoverable;
-  verifyButton.textContent = 'Try again';
+  verifyButton.disabled = recovery.action !== 'retry' && recovery.action !== 'refresh';
+  verifyButton.textContent = recovery.action === 'refresh' ? 'Check again' : 'Try again';
 }
 
 async function recover() {
@@ -1642,6 +2251,10 @@ async function recover() {
 }
 
 verifyButton.addEventListener('click', async () => {
+  if (recoveryAction === 'refresh') {
+    await recover();
+    return;
+  }
   if (runMemory.completionReady === true) {
     const decision = completionDecision(runMemory.completionOwner, completionSent);
     if (decision === 'dismiss') {
@@ -1762,7 +2375,7 @@ profile should prefer `label` when present and render nothing (not
 exact rubric-leak SPR-5903 fixed on the native camera coach.
 
 **Checklists (multi-photo).** A task author can give a `photo_proof_v1` task a
-checklist of 2 to 6 items instead of one `criteria`, for example "your made
+checklist of 2 to 10 items instead of one `criteria`, for example "your made
 bed", "the bookshelf" and "the toy bin". The plan then carries
 one check per item, in authored order, and every check has a `label` and an
 empty `references` array:
@@ -2082,7 +2695,7 @@ task status while a verdict is in flight, and the parent-review handoff.
 ### `sprout.activity.checklist(options?): Promise<ActivityChecklistResult>` — Feature-gated
 
 Reads the running photo **checklist** of this run: a `photo_proof_v1` task
-authored with 2 to 6 items ("your made bed", "the toy bin"). Use it to draw
+authored with 2 to 10 items ("your made bed", "the toy bin"). Use it to draw
 progress chips and to ask for the next photo. The checklist is two-way. A
 photo the judge rules on, the kid's own claim, and a parent's decision all
 move the same items, so re-read whenever the host says something changed.
@@ -2102,7 +2715,11 @@ render(); // re-read once on subscribe; a change can land before you attach
 
 - `items[]`: `index`, `label` (the kid-facing wording; there is never a
   `criteria`), `status`, `reason` (kind, kid-readable: why an item is not done
-  yet), `suggestion` (what to photograph next), `source` (`judge`,
+  yet — always the bare reason), `framedReason` (only on a grown-up's reject,
+  from a host that frames it: Sprout's own sentence around the reason, in the
+  kid's language — say it as it is instead of framing `reason` yourself; when
+  it is absent, frame `reason` as usual),
+  `suggestion` (what to photograph next), `source` (`judge`,
   `judge_criteria` — a judge decision with no photo of its own, for a
   criteria-only item — `kid_claim`, `parent` or `parent_agent`), `decidedAt`,
   and `evidenceAssetId` (the photo that proved or disproved the item, or
@@ -2134,8 +2751,9 @@ sends the item back as `not_done` with a kind `reason`. A proof submitted with a
 claim nobody confirmed goes to a parent (`parent_review`). Never write copy
 that treats an unconfirmed claim as a lie. Say "Show me!", not "you didn't do
 it". Claiming again, or claiming an item that is already `done`, changes
-nothing and returns `changed: false`. The index must be an integer from 0 to 5,
-or the promise rejects before anything is sent.
+nothing and returns `changed: false`. The index must be an item of this
+checklist (0 up to one less than its item count); a non-integer or negative
+index rejects before anything is sent.
 
 #### `sprout.activity.checklist.onChanged(cb): () => void`
 
@@ -2146,6 +2764,140 @@ photo from a parent check-off). It returns an unsubscribe function.
 
 The web preview has no real proof run and answers `not_checklist` to both
 calls. Test the checklist UI on a device.
+
+### `sprout.activity.photos(options?): Promise<ActivityPhotosResult>` — Feature-gated
+
+The photos the kid has taken in this run, each with what **it** proved, so the
+canvas can draw them **inline, wherever its layout wants them**, with its own
+"checking…" state. The host draws **nothing** over or around the canvas while a
+photo is checked: the shutter closes the camera and the canvas owns the wait.
+
+```js
+async function renderPhotos() {
+  const res = await sprout.activity.photos();
+  if (res.status !== 'ready') return; // keep your no-photo layout
+  for (const p of res.photos) {
+    const img = thumbFor(p.photoId);
+    if (p.previewSrc) img.src = p.previewSrc; // display-only
+    if (p.status === 'uploading' || p.status === 'checking') showSpinner(img);
+    if (p.status === 'done') tickItems(p.provedItems); // 0, 1, several or all
+    if (p.status === 'waiting') showWait(p.waitSeconds); // "give me a minute"
+    if (p.retryable) showTryAgain(() => sprout.activity.photos.retry(p.photoId));
+    if (p.status === 'needs_retake') showRetake(() => sprout.activity.photos.retake());
+  }
+}
+sprout.activity.photos.onChanged(renderPhotos);
+renderPhotos();
+```
+
+**Photos are not 1:1 with checklist items.** One photo is judged against every
+open item and may prove none, one, several or all of them, and results add up
+across photos. Join a photo to the checklist through `provedItems` (item
+`index` values from `sprout.activity.checklist()`). Never assume "item 2 has a
+photo". A one-check task proves item `0` or nothing.
+
+`ready` returns `photos[]`, oldest first:
+
+- `photoId`: opaque and host-minted. Pass it to `photos.retry`.
+- `kind`: `photo` or `video`.
+- `previewSrc`: a **display-only** image URL, or `null` when there is nothing
+  local to show. That happens for a video with no poster, for a preview the
+  host already cleaned up, and in the web preview.
+- `assetId`: the saved photo's asset id once the host has taken custody of
+  it, otherwise `null`. It is the same id `activity.checklist()` gives as an
+  item's `evidenceAssetId`. Use it to show each photo once when you also draw
+  earlier sessions' saved photos: `photos()` lists only this session's photos,
+  so on a resumed run draw the checklist's evidence (through
+  `sprout.asset.resolve()`) before them, and skip any whose id a session photo
+  already carries. Never hide earlier photos.
+- `status`:
+  - `uploading`: on-device prep and the safety scan.
+  - `checking`: being judged.
+  - `done`: judged. `provedItems` says what it proved, and may be empty.
+  - `needs_retake`: this photo can never be used, so ask for a new one.
+  - `waiting`: paused for `waitSeconds`. When the wait ends, `onChanged` fires
+    and the photo is then either being checked again (`uploading`/`checking`)
+    or `unavailable` and retryable. Draw whatever the next read says, and
+    never assume which one it will be.
+  - `unavailable`: the check could not finish. `retryable` says whether Try
+    again can work.
+- `retryable`: `true` only on `unavailable` when `photos.retry(photoId)` can
+  work now.
+- `waitSeconds`: whole seconds left on a `waiting` photo, otherwise `null`.
+- `provedItems`: item indexes this photo proved, ascending. Only this photo's
+  own contribution, so an item an earlier photo proved is not repeated.
+- `provedItemsKnown`: `true` when `provedItems` is this photo's own per-item
+  answer. It is `false` for a judged photo whose verdict carried no per-item
+  block (a proof already settled, or a spent photo cap): the photo was
+  checked, but which items it proved is not known. Draw no tick line for it,
+  and never say it proved nothing. Always `false` before `done`.
+
+Draw distinct copy for the three recoveries. Say "Try again" for `retryable`,
+"Take a new photo" for `needs_retake`, and "Give me a minute" with the
+countdown for `waiting`. They are different situations, and a kid should not
+see one message for all three.
+
+**`previewSrc` is display-only, by construction.** It is a
+`sprout-media://runtime/runtime-media/<id>` URL on an isolated origin that only
+this device's host resolves. Put it in an `<img src>` or a CSS background.
+
+- You cannot `fetch` it, because the canvas CSP admits it on `img-src` only.
+- Drawing it into a `<canvas>` taints the canvas, so
+  `getImageData`/`toDataURL` throw.
+- `<img crossorigin>` does not load it.
+- It is a small, downscaled copy that the host deletes when the run ends, when
+  the app is backgrounded, or when its lease runs out. Never persist it, and
+  re-read on `onChanged`, where a cleaned-up preview reads `null`.
+
+An `<img>` whose `onerror` fires is a normal case. Keep the placeholder and
+re-read on the next `onChanged`.
+
+`{ status: 'unavailable' }` means this run has no photo state, which is the
+case for a canvas that is not a proof run and for the web preview. Keep your
+no-photo layout. The call never rejects on a host failure.
+
+The photos surface rides the activity-verification declaration you already
+get from `sprout.activity.verify()` / `status()` / `checklist()`. It needs no
+declaration of its own.
+
+#### `sprout.activity.photos.retry(photoId, options?)`
+
+Try again on the photo whose check could not finish (`retryable: true`). The
+host replays that photo's saved bytes, so no new picture is needed. This is the
+same journey as `sprout.activity.verify()` and sits behind the same gates:
+declare `activity.verify` and the camera the way `verify()` needs. While the
+check runs, the photo moves back to `uploading`/`checking` through `onChanged`,
+and the promise resolves with the list once the journey settles.
+
+- A `photoId` that is not the retryable photo does nothing and resolves with
+  the current list.
+- A `photoId` that is not a string from `photos()` rejects before anything is
+  sent.
+- A refused gate resolves `{ status: 'unavailable' }` and opens nothing.
+
+#### `sprout.activity.photos.retake(options?)`
+
+Ask for a fresh photo, and the host opens the camera. This is the same journey
+as `sprout.activity.verify()`, behind the same gates. The new photo arrives
+through `onChanged`, and the promise resolves with the list once the journey
+settles. A refused gate resolves `{ status: 'unavailable' }` and opens nothing.
+
+If your canvas already calls `verify()`, its Try again and new-photo buttons
+can simply call `verify()` again: the host replays a saved photo when there is
+one and opens the camera when there is not.
+
+#### `sprout.activity.photos.onChanged(cb): () => void`
+
+A bare signal that carries no data. It fires when a photo is added, changes
+stage, is judged, fails, or its wait ends. Re-call
+`sprout.activity.photos()` from `cb`. It returns an unsubscribe function.
+
+A canvas that draws no photos still works. `sprout.activity.verify()` and
+`status()` keep carrying Try again and retake exactly as before.
+
+**Video.** A video entry carries `previewSrc: null` today. A still poster frame
+is the planned preview and will follow the same display-only rule. Muted
+playback is not offered.
 
 ### Previewing the photo-proof journey
 
@@ -2174,12 +2926,11 @@ upload the capture, or create a production submission.
 ## Release-gated and roadmap methods
 
 The runtime-media methods below have a pinned byte-free contract and an iOS kid
-host implementation, but they are **default-off feature-gated capabilities**.
-They work only when the server derives effective `canvas_uploads` access from
-the trusted `FEATURE_CANVAS_UPLOADS` environment lever or an active approved
-family pilot grant. Canvas input cannot enable or select that decision.
+host implementation. They are **feature-gated capabilities**: available to
+every family on the iOS kid host, behind the child's base-account consent.
+Canvas input cannot enable or select that decision.
 
-When access is ineffective, `camera.capture` is denied before native camera UI
+When the server refuses, `camera.capture` is denied before native camera UI
 appears, and `asset.upload` / `asset.resolve` are denied before any new runtime
 asset state, object transfer, finalize, or byte read. Authors may prepare
 against these signatures only when they also provide a non-camera fallback.
@@ -2189,14 +2940,9 @@ Released (same-canvas scoped — see its section).
 **Server boundary:** the host-only capability broker
 (`/v1/canvas/capabilities/:capabilityKey`), authenticated asset content/finalize
 routes (`/v1/canvas/assets/:assetId/*`), and proof-bearing Canvas completion
-(`/v1/canvas-runs/:runId/complete`) all recheck effective `canvas_uploads`
-authority. They are not public Canvas fetch targets, and proof completion cannot
-be used to bypass a disabled capture/upload rollout. There is no MCP surface
-that reports this effective authority today (`mcp_health` returns protocol info
-only). The `FEATURE_CANVAS_UPLOADS` env lever defaults OFF, but an active
-family pilot grant can make effective access ON even when the lever is off —
-treat the composed decision (lever OR grant), not the lever alone, as the
-source of truth for any given family.
+(`/v1/canvas-runs/:runId/complete`) all recheck base-account consent. They are
+not public Canvas fetch targets, and proof completion cannot be used to bypass
+that check.
 
 **Availability:** raw runtime-media calls in the web preview use a checked-in
 fake capture only for a canvas the host has fingerprinted as the bundled Photo
@@ -2393,18 +3139,27 @@ some shells animate the Sprout avatar, some show toasts, some log to
 telemetry, some do nothing. Your job is to emit signals when something
 worth-reacting-to happens; the host's job is to react.
 
-| Signal                 | When to emit                                                   | Default avatar reaction |
-| ---------------------- | -------------------------------------------------------------- | ----------------------- |
-| `'celebration'`        | Big positive moment — perfect streak, big win, milestone       | celebration             |
-| `'milestone-reached'`  | Smaller positive checkpoint — finished a section, hit a streak | laugh                   |
-| `'attempt-successful'` | Routine correct answer or successful step                      | smile                   |
-| `'attempt-failed'`     | Routine wrong answer or failed step                            | doubtful                |
-| `'user-stuck'`         | Kid is idle or repeatedly wrong                                | thinking                |
-| `'hint-requested'`     | Kid explicitly asked for help                                  | surprise                |
+| Signal                 | When to emit                                                          | Default avatar reaction |
+| ---------------------- | --------------------------------------------------------------------- | ----------------------- |
+| `'celebration'`        | Big positive moment — perfect streak, big win, milestone              | celebration             |
+| `'milestone-reached'`  | Smaller positive checkpoint — finished a section, hit a streak        | laugh                   |
+| `'attempt-successful'` | Routine correct answer or successful step                             | smile                   |
+| `'attempt-failed'`     | Routine wrong answer or failed step                                   | doubtful                |
+| `'user-stuck'`         | Kid is idle or repeatedly wrong                                       | thinking                |
+| `'hint-requested'`     | Kid explicitly asked for help                                         | surprise                |
+| `'stuck-word'`         | A reader is stuck on one word of the page; pass `{ word }`            | thinking                |
+| `'reading-phase'`      | The kid starts reading a page aloud, or finishes it; pass `{ state }` | none                    |
 
 Pick the most-specific signal that applies. If the kid hits a 5-streak, fire
 `'celebration'` — don't also fire `'attempt-successful'`. If they hit a
 3-streak, fire `'milestone-reached'`. Routine correct → `'attempt-successful'`.
+
+**Asking for help.** A kid asks for help by tapping Sprout: the host sends
+`'hint-requested'` for that tap, and Sprout answers by the screen's
+`data-sprout-rule` (the table under "Mark a quiz screen" below). A canvas
+therefore doesn't need a Help button of its own, and the host draws none.
+One is still supported: have it fire
+`sprout.signal('hint-requested')`, and it counts exactly like a tap on Sprout.
 
 ```js
 function onCorrect() {
@@ -2426,6 +3181,28 @@ function onWrong() {
 `props` is free-form — attach whatever context the host might find useful
 (streak length, time remaining, question id). The wire message is JSON, so
 keep `props` JSON-serializable.
+
+`'stuck-word'` is the one signal whose props the host reads: `{ word }`, a
+single word exactly as the page shows it. In a `tutor` part Sprout then says
+that word and a short way to sound it out, never the sentence, so it is for a reader stuck mid-page, not a hint.
+The word must be visible on the page (the host finds it in what Sprout can
+already see, and drops the signal when it is not there), and Sprout cannot
+speak over a live take: `await sprout.speech.stop()` before you send it, and
+`listen` again afterwards. The reading-practice template
+(`templates/read-to-sprout-canvas`) is the worked example.
+
+`'reading-phase'` declares a phase, not a moment, so it has no avatar reaction
+and Sprout says nothing on it. Pass `{ state: 'reading' }` when the kid starts
+reading a page aloud (each time you call `sprout.speech.listen` for it, sent
+before the call, and when the kid taps your "Keep reading" button), whether or
+not the listen succeeds, and `{ state: 'ended' }` when the page is done (read to
+the end, or Next or Finish). Any other `state` is ignored. The host then knows
+the kid is reading even when no speech take is open (the recognizer was lost and
+the listen failed), so Sprout stays quiet while they read and says his
+after-reading line only once you say `ended`. A canvas that never sends it is
+judged by its speech takes instead. Once a take is over (the page is done, or
+the recognizer ended it), don't listen again until the kid taps.
+The reading-practice template is the worked example.
 
 ---
 
@@ -2492,6 +3269,240 @@ correct, complete way to reflect the backward move to the kid.
 
 ---
 
+## Host photos in an open Canvas step
+
+```ts
+sprout.onPhotoAttach(handler: (input: PhotoAttachInput) => PhotoAttachResult | Promise<PhotoAttachResult>): void;
+sprout.setPhotoStep({ open: true, kind: 'photo', stepId: 'desk-photo' });
+```
+
+Register a handler **and** declare the current step before the host can offer a
+photo from the Canvas chat sheet. Either registration order works. Each later
+`setPhotoStep` publishes the new declaration; close the step when it has what it
+needs. `kind` is `photo`, `video`, or `any`. `stepId` uses 1–64 letters, digits,
+or hyphens. Older canvases and hosts remain compatible without a version floor.
+Feature-detect **both** new methods before registering the host handler or making
+any photo-step update; on an older runtime, keep the existing own-camera path.
+
+The host sends `photo.attach` with `{ id, attemptId, stepId, photo }`. The photo
+contains `{ previewSrc, captureId, mimeType, source, takenAt? }`. `previewSrc` is
+an opaque `sprout-media://runtime/runtime-media/<id>` display reference, never
+bytes or a `data:`, `blob:`, or `file:` URL. `captureId` is an upload grant for
+the existing `sprout.asset.upload({ source: { type: 'capture', captureId } })`
+path, with its existing consent, task-linkage and server safety checks. The host
+checks device safety and proof admission before delivery; an unavailable safety
+check refuses this destination. The lease owns a separate protected copy, so its
+expiry never deletes the chat attachment.
+
+This destination requires **both** server-derived `camera.capture` and
+`asset.upload` capabilities in the Canvas execution scope. Registering
+`onPhotoAttach` or calling `setPhotoStep` alone grants neither. The static scanner
+derives capabilities from genuine executable SDK call sites; comments and a
+manually claimed list do not authorize them. Consent, task linkage, execution
+approval, safety and lease checks still apply on every host operation.
+
+This example's own camera button captures a photo, and both that button and the
+sheet handler upload the accepted capture for a durable preview. Keep these
+working paths when using this example; do not add unreachable capture/upload
+calls solely to claim capabilities. Provide a non-camera activity path when
+runtime media is unavailable.
+
+```html
+<button id="desk-photo-camera" type="button">Take a desk photo</button>
+<img id="desk-photo-preview" alt="Your desk photo" />
+```
+
+```js
+const deskPhotoPreview = document.getElementById('desk-photo-preview');
+const deskPhotoCamera = document.getElementById('desk-photo-camera');
+const hostPhotoSupported =
+  typeof sprout.onPhotoAttach === 'function' && typeof sprout.setPhotoStep === 'function';
+let deskPhotoAccepted = false;
+let deskPhotoBusy = false;
+async function acceptDeskPhoto({ stepId, photo }) {
+  if (stepId !== 'desk-photo' || deskPhotoAccepted) {
+    return { attached: false, reason: 'step_done' };
+  }
+  if (!(deskPhotoPreview instanceof HTMLImageElement)) {
+    return { attached: false, reason: 'unavailable' };
+  }
+  if (deskPhotoBusy) return { attached: false, reason: 'busy' };
+  deskPhotoBusy = true;
+  try {
+    const upload = await sprout.asset.upload({
+      source: { type: 'capture', captureId: photo.captureId },
+    });
+    if (upload.status !== 'ready') return { attached: false, reason: 'unavailable' };
+    deskPhotoPreview.src = upload.asset.src;
+    deskPhotoAccepted = true;
+    if (deskPhotoCamera instanceof HTMLButtonElement) deskPhotoCamera.disabled = true;
+    if (hostPhotoSupported) sprout.setPhotoStep({ open: false, kind: 'photo', stepId });
+    return { attached: true };
+  } catch {
+    return { attached: false, reason: 'unavailable' };
+  } finally {
+    deskPhotoBusy = false;
+  }
+}
+if (hostPhotoSupported) {
+  sprout.onPhotoAttach(acceptDeskPhoto);
+  sprout.setPhotoStep({ open: true, kind: 'photo', stepId: 'desk-photo' });
+}
+if (deskPhotoCamera instanceof HTMLButtonElement) {
+  deskPhotoCamera.addEventListener('click', async () => {
+    try {
+      const capture = await sprout.camera.capture();
+      if (capture.status === 'captured') {
+        await acceptDeskPhoto({ stepId: 'desk-photo', photo: capture.capture });
+      }
+    } catch {
+      deskPhotoCamera.textContent = 'Try photo again';
+    }
+  });
+}
+```
+
+The runtime answers `photo.attach-response` with the same `id` and `attemptId`
+and either `attached: true` or `attached: false` plus one of `no_photo_step`,
+`step_done`, `wrong_kind`, `busy`, `unavailable`. The runtime validates every
+inbound seam and replays a completed attempt without rerunning the handler,
+even after the step advances. No entry is added to `sprout.activity.photos()`.
+
+Hosts call `requestPhotoAttach({ attemptId, stepId, photo })`. Its bounded wait
+returns `no_answer` after 2 seconds; this means the outcome is uncertain.
+`onLatePhotoAttach` reconciles a later success. Retry with the **same** attempt
+id, in the **same live document**. A closed step still allows a dispatched attempt
+to read its cached answer, but never accepts a new attempt. A replacement document
+has lost that cache: hosts hold an uncertain older attempt pending and never
+replay it into the replacement. The photo remains a chat attachment; recovery
+cannot claim the previous Canvas commit did or did not happen.
+After document loss, hosts retain a session-local **unconfirmed** outcome,
+not a confirmed attachment or failure. They offer no Retry/Retake or proof
+fallback for that older attempt. Same-live-document timeouts may still retry
+the same id while that document retains its outcome cache. No durable outcome
+readback is implemented here; true recovery across document loss requires a
+future durable outcome owner.
+Do not start another committing destination after `no_answer`: an original
+handler may still succeed. Only an authoritative refusal permits proof fallback.
+The native view exposes `onPhotoStepSupport`, `photoAttachNonce`, `photoAttach`,
+`onPhotoAttachResult` and `onLatePhotoAttach` for the same exchange.
+
+## Camera from the host's bar — `sprout.onCameraOpen` (Released)
+
+```ts
+sprout.onCameraOpen(handler: () => CameraOpenResult): void;
+type CameraOpenResult =
+  | { opened: true }
+  | { opened: false; reason: 'busy' | 'unavailable' | 'no_camera' };
+```
+
+With the child app's Stage shell on, the shared bottom bar can own your
+canvas's Camera: a camera keycap there opens YOUR capture, and your own Camera
+button steps aside. To take part, register a short, SYNCHRONOUS function that
+STARTS the function your Camera button already runs and returns straight away.
+There is no second capture path: the keycap reaches the very same function, so
+the same proof, consent and safety journey runs.
+
+DO NOT register your tap handler directly, and DO NOT make the handler
+`async`: the runtime reads the return value, so a Promise answers
+`unavailable` even though your capture already opened.
+
+```js
+function onCameraTap() {
+  /* opens sprout.activity.verify(), as before */
+}
+
+sprout.onCameraOpen(() => {
+  if (capturing) return { opened: false, reason: 'busy' };
+  if (!cameraReady()) return { opened: false, reason: 'unavailable' };
+  void onCameraTap();
+  return { opened: true }; // answer now; do not wait for the capture to end
+});
+```
+
+The runtime runs your handler **synchronously** each time the host asks, and
+sends the host your answer:
+
+- `{ opened: true }` — your handler ran and started the capture. It is an
+  acknowledgement, not proof that a camera is open: the app's own gate can
+  still refuse after it, so a host reads the capture's state from the activity
+  photos and status, not from this answer.
+- `busy` — a capture you started is still open.
+- `unavailable` — you have a camera, but it can't run right now (still
+  loading, the run is over, or your Camera button is disabled). The runtime
+  also answers this for a handler that throws or returns anything else.
+- `no_camera` — the runtime's own answer when no handler is registered. Never
+  return it from your own handler; use `unavailable`.
+
+**Tell the host when your Camera can't run.** While your Camera is disabled
+(loading, or the run is over) or is standing in as something else ("Try
+again"), the host's keycap would only get a refusal. Report that state, and the
+host dims the keycap instead:
+
+```ts
+sprout.setCameraOpenEnabled(enabled: boolean, options?: { idle?: boolean }): void;
+```
+
+Call it on every change, from the same state your Camera button reads, and
+answer `unavailable` from your handler on the same condition. It starts
+`true`. The runtime re-sends the host your declaration (`camera.open-support`)
+with `enabled`, and only when the value changes, so calling it with the
+current state is free. A value set before `onCameraOpen` rides on the
+declaration. A canvas that never calls it is enabled, exactly as before.
+Feature-detect it, as an older app build's runtime has no
+`setCameraOpenEnabled`:
+
+```js
+if (typeof sprout.setCameraOpenEnabled === 'function')
+  sprout.setCameraOpenEnabled(!dock.classList.contains('no-actions') && !cameraBtn.disabled);
+```
+
+**Say which kind of off it is.** A tap on the dimmed keycap tells the kid the
+camera can't open right now. That is true while your Camera is blocked (still
+loading, a check in flight, a task it can't check), but not once the run is
+over or your button stands in as "Try again": nothing is wrong then. Pass
+`{ idle: true }` with `false` for those, and the keycap dims without a word.
+It is read only beside `false`; a runtime that predates `idle` ignores it, so
+the same call works there too:
+
+```js
+// idle: the run is over, or the button is "Try again" right now.
+var idle = dock.classList.contains('no-actions') || !cameraBtnIsTheCamera;
+if (typeof sprout.setCameraOpenEnabled === 'function')
+  sprout.setCameraOpenEnabled(!idle && !cameraBtn.disabled, { idle: idle });
+```
+
+**Mark your Camera with `data-sprout-camera`.** When the host's bar owns the
+Camera, it hides what you marked, and only once you have registered a
+handler. Mark the Camera button, and mark its `.action-bar` too when the bar
+holds nothing else, so the bar reserves no space once the button is gone.
+Never mark a bar that also holds Done: Done, and every other control, stays.
+When the same button stops being the Camera (it becomes "Check again"),
+remove the mark from BOTH the button and its bar: a bar left marked on its own
+hides whatever the button became.
+
+```html
+<div class="action-bar" data-sprout-camera>
+  <button class="canvas-btn full" data-sprout-camera onclick="onCameraTap()">Camera</button>
+</div>
+```
+
+**Purely additive.** A canvas that never calls `onCameraOpen` declares
+nothing: the host draws no camera keycap for it, never sends it a camera
+request, and its own Camera button stays exactly as authored. Calling it again
+REPLACES the handler; passing anything that is not a function withdraws the
+declaration. Feature-detect it, as an older app build's runtime has no
+`onCameraOpen`:
+
+```js
+if (typeof sprout.onCameraOpen === 'function') sprout.onCameraOpen(onCameraOpenRequest);
+```
+
+The golden-path proof canvas template (`golden-proof-canvas`) is the worked
+example.
+
+---
+
 ## Progress — host-rendered bar (Released)
 
 ```ts
@@ -2507,16 +3518,40 @@ sprout.progress.set(progress: { current: number; total: number }): void;
 sprout.progress.clear(): void;
 ```
 
-The Sprout app draws **one branded progress bar above the canvas**. The bar
-is part of YOUR canvas's design — you declare it, dress it, and move it; the
-host owns the visuals (Sprout track, fill, milestone circles, countdown).
-**Do NOT draw your own progress bar** — no `.progress-bar` markup, no custom
-track/fill, no countdown headers. An in-canvas bar costs kid screen space,
-duplicates chrome, and can't get the Sprout-branded treatments.
+The Sprout app draws **one branded progress bar above the canvas**, in its
+own fixed-height row (64pt on a phone, 80pt on a tablet) that sits OUTSIDE
+your document. The bar is part of YOUR canvas's design — you declare it, dress
+it, and move it; the host owns the visuals (Sprout track, fill, milestone
+circles, countdown) and the row. **Do NOT draw your own progress bar, and do
+not leave a gap for one** — no `.progress-bar` markup, no custom track/fill,
+no countdown headers, no empty band at the top. An in-canvas bar costs kid
+screen space, duplicates chrome, and can't get the Sprout-branded treatments.
+`--canvas-safe-top` is only the floating back button's band, and it is 0 once
+the host's toolbar row is up.
+
+**Never author an exit or progress row either.** The host hides the kit's
+`.session-bar` (its `session-bar-close` back arrow and `session-bar-track` /
+`session-bar-fill`) in every canvas: it is design-preview chrome, the host
+draws the real exit and progress, and an exit you draw has nothing to call. Use
+`sprout.progress` for progress.
 
 **The bar exists only after `setup()`.** Calling `set()` without a prior
 `setup()` renders nothing — declaring the bar is the explicit opt-in. Call
 `setup()` early (top of your script), then report position as the kid moves.
+
+**Templates showcase several items; report progress across them.** A round is
+one session of several items (3 to 5 words, sounds, pages, letters or
+questions in `sprout.values`, say `items[]`), played by one loop over them:
+render item `i`, check it, `set({ current: i + 1 })`, next; the last item
+completes. One item is not practice, so a template's `defaultRound` and its
+samples carry several, and the canvas reports progress with that real total,
+taken from `sprout.values`, never a number typed into the script. Declare the
+bar exactly when the round has more than one step: a canvas handed a
+single-item round (valid, never the default) declares no bar, and the host's
+row keeps the task name (Viv, 2026-10-15: every canvas should look the same
+for the same shape of activity; "should we always showcase more than one
+step" — yes). The task's round queue supplies the next session on each play;
+a canvas never carries cross-session logic.
 
 All five calls are **fire-and-forget**, exactly like `signal`: no return
 value, nothing to `await`, and they never throw — no `try / catch` needed.
@@ -2695,14 +3730,10 @@ Clearing a contract (`defaultRound: null` **and** `roundGuide: null` together)
 is refused while the HTML still reads `sprout.values`, and refused with
 `ASSIGNED_VALUES_INCOMPATIBLE` while any task assignment still holds rounds for
 the canvas. That fence — and the one on a guide change, which counts the same
-set — asks "could this assignment still run?", and the answer differs by how
-the task was created:
-
-- a **program-assigned** task stops pinning once its program assignment reaches
-  a terminal state (completed or abandoned) — it can never run again;
-- a **standalone** task (`task.create`) pins for as long as the task exists,
-  whatever its own completion state, because it stays replayable: free play and
-  extras both give it more plays, and each one consumes the live round.
+set — asks "could this assignment still run?". A task (`task.create`) pins for
+as long as it exists, whatever its own completion state, because it stays
+replayable: free play and extras both give it more plays, and each one consumes
+the live round.
 
 So the way out of a clear refusal is to delete the tasks holding rounds for the
 canvas, or to fork the canvas for the static version.
@@ -2725,10 +3756,6 @@ round-scoped, as is `ROUND_INVALID`. Every round-scoped refusal carries the
 the queue-scoped pair has no index to give. The retired `canvasSpec.setup` key and the standalone
 `values` write are refused with `ROUNDS_WIRE_RENAMED`, and a queue sent to a
 canvas that declares no rounds is refused with `CANVAS_HAS_NO_ROUNDS`.
-
-**Program task templates are the exception**: a Program template keeps its
-single stored `canvasSpec.setup` round, so no Program payload needs editing. A
-round queue for Programs is separate, later work.
 
 ### Finishing a round rotates the queue
 
@@ -2754,9 +3781,8 @@ content changed between runs** — read `sprout.values` fresh every time and
 render whatever is there.
 
 Because the queue recycles, it never depletes. `task.describe` reports
-`availability.roundsInRotation` — how many DISTINCT rounds are cycling — for a
-**direct Task only**; the Program-assigned path does not load that projection,
-so a Program row reports no rotation size. The task tools raise the
+`availability.roundsInRotation` — how many DISTINCT rounds are cycling. The
+task tools raise the
 acknowledgeable warning `REWARDED_PLAYS_EXCEED_ROUNDS`
 when a child can earn on a task more times in a day than the queue holds
 distinct rounds (the play past the rotation would repeat content the child
@@ -2820,9 +3846,7 @@ askAll(questions); // [{ prompt: 'What is 7 plus 5?', choices: [...], answer: 1 
   },
   "roundGuide": {
     "fields": { "intro": "One warm line before the first question.", "questions": "…" },
-    "constraints": {
-      /* JSON Schema draft 2020-12 the values must pass */
-    },
+    "constraints": {/* JSON Schema draft 2020-12 the values must pass */},
     "examples": [{ "values": { "intro": "Four quick math questions. Ready?", "questions": [] } }],
   },
 }
@@ -2897,9 +3921,12 @@ const stars = journey.stars ?? 0;
 // never rejects: branch on the result instead of catching.
 const res = await sprout.journey.save({ level: 4, stars: 12 });
 if (!res.ok) {
-  // res.error is 'too-large' | 'disabled' | 'not-task-linked' | 'unsafe-value'. On 'too-large'
-  // the previously-saved journey is untouched. Degrade gracefully — the canvas
-  // still works, just without cross-day memory.
+  // res.error, when present, is 'too-large' | 'disabled' | 'not-task-linked' |
+  // 'unsafe-value' — a typed refusal, and on 'too-large' the previously-saved
+  // journey is untouched. But a timeout, a rejected request or a malformed
+  // response also resolves { ok: false } with NO error — don't assume
+  // res.error exists. Degrade gracefully either way — the canvas still
+  // works, just without cross-day memory.
 }
 ```
 
@@ -3350,6 +4377,339 @@ rarely need it — assignment already persists.
 
 ---
 
+## Canvas db — `sprout.use('db')` (Feature-gated)
+
+A per-canvas document store, shaped like the claude.ai artifact `db`
+capability, so one contract serves both platforms. Use it for data that lives
+outside the page and changes under it: an item bank the parent's agent refills,
+a round queue, the kid's progress through it. The page re-renders from
+snapshots; nobody rewrites the HTML under the kid. Hosts without the store (or
+with `FEATURE_CANVAS_DB` off) resolve `null`, so **design for absence**.
+
+**Declare it.** Pass `capabilities: { db: {} }` to `canvas.create` (or
+`canvas.update`); a canvas that does not declare `db` gets `null`, and the
+parent's agent cannot open its store either. Without rules, everyone who can
+open the canvas reads its shared paths and everyone at `interact` and up writes
+them; `data/users/<id>/` is that person's own. Add `rules` to change the level a
+path needs: `{ db: { rules: [{ path: 'answers', read: 'admin' }] } }` keeps an
+answer key from viewers and kids (levels, lowest first: `view`, `interact`,
+`admin`, `owner`; `{self}` and `{task}` in a path match the caller). The
+parent's agent reads and writes the store with `canvas_get_document`,
+`canvas_list_documents`, `canvas_set_document`, `canvas_update_document`,
+`canvas_delete_document` and `canvas_write_documents`.
+
+```js
+const db = await sprout.use('db'); // null when unavailable
+if (db) {
+  const current = db.doc('data/tasks/' + db.task + '/current');
+  const stop = current.onSnapshot(
+    (snap) => render(snap.exists ? snap.data() : null),
+    (err) => showOffline(err.code)
+  );
+  await current.set({ step: 1, word: 'cat' });
+}
+```
+
+- `db.self` / `db.task` — the viewer's id and the run's task id, chosen by the
+  host (null when there is none). Private per-viewer data lives under
+  `data/users/<self>/...`; per-assignment state under `data/tasks/<task>/...`.
+  Everything else is shared by the canvas's family, and only the parent's agent
+  (or a parent) writes it; the kid's page reads it.
+- Paths: an EVEN number of `/`-separated segments names a document
+  (`bank/words`), an ODD number a collection (`bank`). `db.doc()`,
+  `db.collection()` and the builders on refs throw `TypeError` synchronously for
+  the wrong parity; every other rule (segment characters, sizes, bodies,
+  queries, who may write where) is checked by the host and rejects
+  `invalid_argument`.
+- `DocumentReference`: `get()`, `set(data)` (whole replace, creates),
+  `update(data)` (merge; rejects when the document is missing), `delete()`,
+  `acquire({ holder, ttlMs?, data? })` (short cooperative lease),
+  `onSnapshot(next, error?)`, `collection(name)`.
+- `CollectionReference`: `doc(id?)` (omit `id` for a client-generated one),
+  `add(data)`, and the query builders `where(field, op, value)` (`==`, `!=`,
+  `<`, `<=`, `>`, `>=`, `in`, `not-in`, `array-contains`), `orderBy(field,
+dir?)`, `limit(n)`, `get()`, `onSnapshot(next, error?)`.
+- Snapshots: `DocumentSnapshot { id, exists, data(), metadata }` and
+  `QuerySnapshot { docs, size, empty, docChanges(), metadata }`. Delivered
+  snapshots and their `data()` are frozen; an unchanged document is the same
+  object across deliveries, so compare with `===` and clone before editing.
+- Delivery: the current state arrives soon after `onSnapshot`; after that the
+  runtime polls for changes about every 1.5 s while a subscription is live and
+  the page is visible, and delivers only when something actually changed. Your
+  own writes deliver right away. At most 64 live subscriptions (the 65th gets
+  `resource_exhausted` on its error callback). Subscribe once per path or query
+  and keep the returned unsubscribe; never subscribe from render code.
+- Errors are `{ code, message }` with `code` one of `invalid_argument`,
+  `resource_exhausted`, `quota_exceeded`, `unavailable`, `revoked`,
+  `not_granted`, `version_conflict`. Branch on `code`, never on the message;
+  treat an unknown code as `unavailable`. A document you may not read behaves
+  exactly like a missing one.
+- Your own writes show at once: `set`, `update`, `delete` and `add` reach your
+  snapshots before the store answers, with `metadata.hasPendingWrites` true.
+  The promise still settles on the store's answer. A refused write is taken
+  back on screen and its promise rejects with the code, so catch it and say
+  what it means in your page:
+  `ref.set(data).catch((e) => showNotSaved(e.code))`. If nothing catches it,
+  the host shows a short "That didn't save", and `canvas.create` /
+  `canvas.update` warn about a page that writes with no `.catch` or `try`.
+- The web preview (`/preview/canvas`) runs the store in memory, as the kid,
+  with self `preview-kid` and task `preview-task`; `?sprout=1` adds an
+  inspector that writes as the parent's agent.
+
+`sprout.use(name)` also resolves `'actions'` (below) and the existing
+namespaces (`'tts'`, `'journey'`, `'board'`, `'activity'`, `'gems'`, …) as
+themselves; any other name resolves `null`.
+
+## Sprout moves — `sprout.actions` (Feature-gated)
+
+Register the moves the kid's Sprout may make in your canvas. The handler stays
+in the page; the host sends the list (without handlers) on Sprout's card, and
+Sprout picks at most one move per turn.
+
+```js
+const unregister = sprout.actions.register({
+  name: 'showHint',
+  description: 'Show the next hint for the current word',
+  inputSchema: {
+    type: 'object',
+    properties: { level: { type: 'integer', minimum: 1, maximum: 3 } },
+  },
+  parts: ['practice'],
+  execute: ({ level }) => {
+    if (hintShown) return { ok: false, reason: 'hint already showing' };
+    showHint(level);
+    return { shown: true };
+  },
+});
+// Or: sprout.actions.register('showHint', { description, inputSchema, parts }, handler)
+```
+
+- `name`: letters, digits and `_`, starting with a letter. `description`: what
+  the move does, for Sprout. `inputSchema`: an object of scalar properties
+  (`string`, `number`, `integer`, `boolean`, with `enum`, `minimum`,
+  `maximum`, `maxLength`); the host checks the args before the move arrives.
+  `parts`: the screens it is offered on; absent = every part whose rule allows
+  moves. A list that breaks these rules drops the move host-side.
+- Register any time; the runtime sends the current list whenever it changes.
+  Registering a name again replaces the earlier move. The returned function
+  unregisters it.
+- The handler's return value is the move's result (keep it small: about 2 KB);
+  return `{ ok: false, reason }` to refuse; a throw reports `handler_error`. A
+  returned promise is awaited for up to 5 s.
+- A move never finishes the run: while a handler runs (and until its promise
+  settles), `sprout.complete()` and its aliases throw and `sprout.gems.mint`
+  rejects.
+- Besides your moves, Sprout can `highlight`, `scroll` to, `focus` or
+  `readAloud` any control the page reader reported, with no code from you.
+  Nothing inside `data-sprout="private"` can be targeted.
+
+### Is a call up? — `sprout.call`
+
+```js
+if (sprout.call?.live()) handToSprout();
+const stop = sprout.call?.onChange((live) => (live ? handToSprout() : tellItMyself()));
+```
+
+- `sprout.call.live()`: whether a live voice call with Sprout is up on this
+  canvas now. It turns true when the call goes live with your canvas open
+  (or your canvas opens on a call already up), and false when the call ends,
+  the kid leaves your canvas, or another canvas opens over it.
+- `sprout.call.onChange(cb)`: `cb(live)` runs on each change, never for a
+  repeat. Returns an unsubscribe.
+- It is one yes or no: nothing about the call, what was said or the child.
+- Only the kid's phone reports a call, and only for a canvas Sprout reads. The
+  web preview, the parent app and any other host always answer `false`. An
+  older app has no `sprout.call`, so read it as `sprout.call?.live()`.
+
+### A lesson Sprout tells (on a call)
+
+On a live voice call, Sprout can tell a lesson scene by scene in his own words
+and move it on himself, while the child can talk to him any time. The canvas
+shows the scenes. Sprout does the talking: do not speak his words with
+`sprout.tts.speak`. During a call such a line is said by the call in his own
+words (`call_says`), as a separate turn, so it would talk over the lesson's own
+flow.
+
+**`sprout.call` is the signal.** A canvas that tells the lesson itself without
+a call switches to Sprout telling it when `sprout.call.live()` turns true, and
+back when it turns false. The watcher reads a part's rule as the part is
+entered, so move the story to its own `tutor` part (another `data-screen` or
+`id`) rather than flipping `data-sprout-rule` on the part already showing. On
+an older app with no `sprout.call`, a `speak` answered `{ spoken: false }`
+(`call_says` or `audio_held`) is the fallback cue.
+
+1. Put the story in a part with `data-sprout-rule="tutor"`. A quiz the canvas
+   checks itself goes in its own part with `data-sprout-rule="off"`.
+2. Register one story move, for example `progress_story`, offered in that
+   part. Its handler shows the next scene and returns, **at once**, what the
+   scene is about plus `lesson` (`SproutActionLessonStep`). Start the animation
+   after returning: a call waits only about 3 s for the answer.
+   - `lesson: 'continues'`: when the child is quiet, Sprout goes on to the next
+     scene by himself after a short pause.
+   - `lesson: 'asks'`: the scene asks the child something. Return the question
+     too. Sprout asks it in his own words and waits for the child.
+   - `lesson: 'ends'`: the lesson is over, and Sprout stops moving it.
+3. Keep scene text as facts, not lines: Sprout retells it. Keep the result
+   small (about 2 KB); a larger one is cut and loses its `lesson` mark.
+
+```js
+sprout.actions.register({
+  name: 'progress_story',
+  description: 'Show the next scene of the lesson. Returns what it shows.',
+  parts: ['story'],
+  inputSchema: { type: 'object', properties: {} },
+  execute: () => {
+    const scene = scenes[++at];
+    requestAnimationFrame(() => animate(scene));
+    return {
+      scene: at + 1,
+      of: scenes.length,
+      text: scene.text,
+      ...(scene.question ? { question: scene.question } : {}),
+      lesson: at === scenes.length - 1 ? 'ends' : scene.question ? 'asks' : 'continues',
+    };
+  },
+});
+```
+
+When the child speaks, Sprout answers them first and then carries on. He makes
+at most one move per turn, his own or the child's, and never answers, chooses,
+presses or finishes for the child. Without a call, or on a host that does not
+chain, `lesson` is ignored and the move works like any other. Full example:
+`docs/examples/lesson-lead.html`.
+
+## Task compatible: progress, runs and checkpoints (Feature-gated)
+
+A task may only use a canvas marked task compatible. The task supplies schedule, reward and content; the canvas
+owns the mode. The gate is a completion the canvas emits (`completionCapability`): no completion, not task
+compatible. An open-ended canvas completes when the kid taps its own Done; the host never ends a run for it, and
+a timer cannot either.
+
+**Declare the contract** in `capabilities` on `canvas.create` / `canvas.update`:
+
+```
+capabilities: {
+  db: {},
+  progress:    "task" | "kid" | "none",                        // default none
+  rounds:      "consume" | "rotate",                           // task only, default rotate
+  checkpoints: [{ id, gems, once: "per-run" | "per-kid" }],    // stopping points; "item:*" matches queue items
+  record:      { attempts: {schema}, note: {schema} },         // optional: what the kid may write under a run
+  seed:        [ documents ]                                   // required by task and kid modes, forbidden by none
+}
+```
+
+- `progress`: where the place lives. `task` keeps a queue per task; `kid` keeps one queue shared by every kid
+  with each kid's own pointer; `none` keeps no place (the canvas completes, nothing moves).
+- `rounds`: task mode only. `consume` uses an item up when a run finishes (the queue runs out); `rotate` moves a
+  cursor (`queue/cursor/head`) that wraps.
+- `checkpoints`: stopping points the server sees and pays, `once` per run or per kid (per kid is remembered under
+  `data/users/<kid>/checkpoints` in any mode). `item:*` matches queue items (kid mode only); a fixed id
+  (`halfway`) names one inside an item. Ids are unique; `gems` ≥ 0.
+- `record`: the fields the kid's page may write under a run, each with a schema. Any other write under the run
+  path is refused.
+- `seed`: starter documents, reviewed with the HTML and rendered by previews.
+
+**Paths are fixed:**
+
+| Mode | Content and place                                                                                   |
+| ---- | --------------------------------------------------------------------------------------------------- |
+| task | `data/tasks/<task>/queue/items`, plus `queue/done/<item>` (consume) or `queue/cursor/head` (rotate) |
+| kid  | shared `items/<id>`, plus the kid's pointer at `data/users/<kid>/journey`                           |
+| both | the run at `data/tasks/<task>/runs/<run>/`: `shell`, one document per record field, `moves/...`     |
+
+The agent's write is the same in both modes: append an item. The seed is written into the canvas store at
+publish (the shared `items/<id>` for kid mode; seed paths are always `items/<id>`), copied into each task's queue at task creation for task mode,
+and copied with the canvas at adoption.
+
+**The run shell.** The host writes a shell for every task run and the page reads it through `db.run`, beside
+`db.self` and `db.task`: run id, task id, the checkpoints this play may cover, whether it pays, started at,
+canvas version, and the frozen item (the document `runs/<run>/shell`). Sprout writes `moves`; the host
+writes the shell, `queue/done` and `queue/cursor`.
+
+**What the canvas does:**
+
+1. Read the shell and render the frozen item.
+2. Write only its declared `record` fields under the run.
+3. Signal `milestone-reached` at each checkpoint.
+4. End the play at the shell's checkpoint count and call complete once.
+
+Nothing written to db mints gems; the server pays checkpoints and completions. A milestone or journey write past
+the play's count is refused. `sprout.gems.mint` is refused on a task run (`GEMS_MINT_TASK_RUN`): the task pays its
+completion. Catch the rejection and keep playing; if the canvas declares `capabilities.progress`, reward a stopping point with a
+checkpoint too. Free play (no task) on the same canvas still mints.
+
+**Another canvas's runs.** `db.canvas(<canvasId>)` is a read-only handle over that canvas's store at the
+share's level, on the path the share names (an analytics canvas reading another canvas's `runs`). Writes on
+it are refused (`not_granted`).
+
+**Walk file.** Ship `<name>.walk.json` beside the canvas to prove it reads its queue head and writes its
+declared fields:
+
+```json
+{
+  "canvas": "fraction-path.html",
+  "seed": "fraction-path.seed.json",
+  "as": { "self": "kid-1", "task": "task-1" },
+  "steps": [
+    { "do": "tap", "target": "#choices button:nth-of-type(2)" },
+    { "do": "move", "name": "showHint", "args": {} },
+    {
+      "do": "expect-write",
+      "path": "data/tasks/task-1/runs/*/attempts",
+      "fields": ["q", "picked", "correct"]
+    },
+    { "do": "expect-no-write", "outside": ["data/tasks/task-1/runs/*", "data/users/kid-1/*"] },
+    { "do": "complete" }
+  ]
+}
+```
+
+Steps: `tap`, `say`, `wait` (the eval package's script kid), plus `move`, `expect-write`, `expect-no-write`,
+`complete`. Example: `docs/examples/fraction-path.walk.json`.
+
+**Dry run.** `canvas.create` / `canvas.update` with `dryRun: true` report which rings the declaration meets and,
+in plain words, why it falls short of the next. The declaration decides; the HTML is never scanned for paths.
+There is no headless runner yet, so a shipped walk reports "not walked; fields: unverified" (never a failure).
+
+## Build and iterate on claude.ai first
+
+A canvas that uses `sprout.use('db')` and `sprout.actions` can be built and
+played as a claude.ai artifact before it is published to Sprout, with Claude
+standing in for Sprout. Same HTML, nothing to translate:
+
+1. Put the stand-in, `sprout://canvas/claude-standin`, in a `<script>` before
+   your own script. On a Sprout host `window.sprout` already exists and the
+   stand-in does nothing, so leave it in.
+2. Publish the page as an artifact with `capabilities: { db: {}, user: {}, sample: {} }`
+   (the artifact tool wraps its own document skeleton: send the title, style
+   and body content, not `<html>`/`<head>`/`<body>`).
+3. Seed it with ArtifactData `batch`: each `canvas_write_documents` write
+   `{ action, path, data }` is `{ op, collection, doc_id, data }` there, with
+   `path` split at its last `/`.
+4. Play it. The stand-in panel's "Ask Sprout", and a second miss with the same
+   `mistake` tag, ask Claude (`sample`) with what is on screen and your moves
+   offered in the current part as its tools, under Sprout's rules: one short
+   line, at most one move, never the answer, nothing in an `off` part.
+   `sprout.converse({kind, ask, context?, guide?, turns?, choices?, answer?})`
+   (`kind` is `wonder`, `check` or `choose`) hands the child the floor for a
+   short typed conversation about one question: each Sprout reply comes from
+   `sample()` under the converse guidance in `@sprout/canvas/converse`, the
+   turn cap holds, and it resolves `{outcome, choice?, turnsUsed}` (`done`,
+   `moved_on`, `silent`, `left` or `unavailable`) and never rejects. A page
+   with `<meta name="sprout-about" content="…">` keeps the floor with the
+   canvas (keys dimmed) outside a step.
+   A lesson's story move that answers `lesson: 'continues'` has Sprout go on
+   to the next scene by himself once the child is quiet, as on a call.
+5. Publish to Sprout: `canvas.create` with the same HTML (full document) and
+   `capabilities: { db: {}, actions: {} }`, then seed with
+   `canvas_write_documents`.
+
+What differs: `db.task` is null on claude.ai (keep per-assignment state under
+`data/users/<self>/…` when it is null, as the Fraction Path example does);
+`complete`, `signal` and `tts.speak` are logged or spoken locally; gems,
+journey, verification, camera and mic are not mirrored. The reference canvas
+is `docs/examples/fraction-path.html`.
+
 ## Choosing an upload flow
 
 You have two ways to give a canvas its HTML bytes:
@@ -3387,8 +4747,11 @@ flow is documented below.
    The single entry contains a `signedUrl` (valid for 5 minutes) and a
    `path` (`"index.html"` in v1).
 3. PUT your HTML bytes to `signedUrl` using your runtime's HTTP client.
-   Set `Content-Type: text/html`. The signed URL enforces both the
-   content-type and the byte-size limit you declared.
+   Set `Content-Type: text/html`. If the upload entry includes `headers`,
+   send each one exactly as given; the PUT is refused without them. Sprout
+   checks the declared content type and byte size when it observes and
+   finalizes the upload; the signed URL itself may or may not enforce them,
+   depending on the storage backend.
 4. Call `canvas.create` (or `canvas.update`) with
    `blobRef: { uploadId: <uploadId> }` instead of `html`. The server reads
    the bytes you uploaded, runs the canvas pipeline, and persists the
@@ -3401,7 +4764,7 @@ flow is documented below.
    each relative path from the source manifest; do not include `index.html` in
    `assets`.
 2. PUT each file to the matching entry in the returned `uploads[]`, using its
-   declared content type. A bundle response contains `index.html` first and
+   declared content type and any `headers` the entry carries. A bundle response contains `index.html` first and
    then one upload target per declared asset.
 3. Poll `canvas.get_scan_status({ uploadId })`, respecting
    `pollAfterSeconds`, until `status` is `clean`. Stop on `blocked`, `failed`,
@@ -3741,6 +5104,68 @@ Do not omit it when you read and then modify an existing canvas.
 
 ---
 
+## Page reader — `data-sprout="private"` (Released, host opt-in)
+
+Some hosts read your rendered page — a compact, redacted description of
+what's currently visible (headings, text, control labels and state, drawing
+captions) and which control a tap landed on — to power features like a
+progress companion. This is OFF by default; it only runs when the host
+explicitly opts in, and it never touches your code or the SDK's state, only
+what the page renders.
+
+**Mark anything that must never be read with `data-sprout="private"`.** It
+applies to the element and everything inside it — a whole journal panel, one
+sensitive field, a single private option in an otherwise-public `<select>`.
+A tap that bubbles up from inside a private subtree reports nothing at all,
+not even a redacted key, even when a control sits above the private
+boundary.
+
+```html
+<div data-sprout="private">
+  <p>Today I felt...</p>
+  <textarea>— never read, marker or not —</textarea>
+</div>
+```
+
+The marker protects against Sprout's reader, not against your own canvas
+code — your own code already has direct access to anything you mark private
+and its own way to send it (`sprout.complete`, and so on), so the marker's
+job is only keeping the reader's own page description from including it.
+
+**Keep Sprout's own spoken line off the card with `data-sprout="spoken-only"`.**
+A visually hidden live region (`role="status"`) is normally read, because the
+reader sees what a screen reader would. When the text exists only so Sprout can
+say it aloud, mark it so the reader skips it and doesn't repeat it back as
+on-screen text. Never mark visible instructions: they must stay readable.
+MCP `canvas_create` / `canvas_update` with `dryRun: true` list a neutral warning
+in `analyzerIssues` for every element marked in your HTML markup, hidden or not
+(`save_artifact` has no dry run; it only logs the warning, and markers your script
+adds at runtime are not checked): the check does not determine visibility, so
+valid hidden status keeps the marker and needs no change.
+
+```html
+<style>
+  .say {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+</style>
+<p class="say" data-sprout="spoken-only" role="status" aria-live="polite">…</p>
+```
+
+**Free-text `<input>` and `<textarea>` values are redacted by default, marker
+or not.** Only their presence and length cross the bridge (`value present (12
+chars)` / `value empty`), never the characters themselves — the same data
+minimisation `data-sprout="private"` gives you explicitly, applied by default
+to anything the kid typed rather than content you authored. A `<select>`'s
+value is unaffected (it's a closed set of choices you declared, not open-ended
+text), and a `type="password"` or `type="file"` value is never reported at
+all, not even its length or filename.
+
 ## Rules
 
 1. **No external network calls from canvas JS.** `fetch` and
@@ -3967,7 +5392,7 @@ window.SproutBridge.postMessage(
 You don't need this. The `sprout.*` methods are terser, typed, and the SDK
 guards double-fire for you. Use `SproutBridge.postMessage` directly only if
 you're authoring against the wire protocol — for example, writing a new host
-adapter.
+adapter (see `host.ts` in `@sprout/canvas/web`).
 
 ---
 
@@ -4015,7 +5440,7 @@ zero imports.
 
 ## Optional startup preparation
 
-The child host supplies Opening activity, Loading required assets, Preparing the activity and Ready feedback. Existing Canvases use document-load readiness. For asynchronous initialization beyond document load, register a barrier before that load finishes:
+While a Canvas loads, the child host shows a skeleton with no status text. Existing Canvases use document-load readiness. For asynchronous initialization beyond document load, register a barrier before that load finishes:
 
 ```js
 const preparation = sprout.loading?.begin('Preparing piano listening');
@@ -4025,7 +5450,7 @@ prepareActivity().then(
 );
 ```
 
-`begin(label?)` returns idempotent `ready()` and `fail()` methods. All registered barriers must settle before Ready. Labels are optional local text, limited to 100 characters; do not include private data. The host owns its timeout, error copy and retry. This lifecycle does not complete or grade the activity and grants no capabilities. Microphone access remains an explicit, separately authorized action. Start listening after initial preparation; legacy microphone isolation does not forward loading messages after capture starts.
+`begin(label?)` is a readiness barrier and returns idempotent `ready()` and `fail()` methods. All registered barriers must settle before Ready. The child host does not display the label; it is optional, limited to 100 characters, and must not include private data. The host owns its timeout, error copy and retry. This lifecycle does not complete or grade the activity and grants no capabilities. Microphone access remains an explicit, separately authorized action. Start listening after initial preparation; legacy microphone isolation does not forward loading messages after capture starts.
 
 **Never gate `ready` on speech.** A barrier that stays open until an awaited
 `sprout.tts.speak()` (see Buddy voice, above) resolves gates the kid's "Ready
@@ -4066,3 +5491,189 @@ behalf: a barrier that also waits on other work
 window a host-side failure of the request is not reported to the caller.
 Once `ready` has fired, `speak()` resolves with the host's real
 acknowledgement as usual.
+
+---
+
+## Working with Sprout — how the buddy follows your canvas
+
+While a child plays your canvas, these are the practices Sprout's reader — the
+buddy that follows along, notices when the kid is stuck, and talks them
+through it — will use as it rolls out (Lane 1 of the Canvas ↔ Sprout
+workstream, currently behind a flag). You don't have to wait for that
+rollout: every practice below also makes your canvas better on its own, so
+build this way now.
+
+Sprout never plays for the kid. It won't press answers, complete the run, or
+grant gems, whatever your canvas does.
+
+### Make your canvas easy to follow
+
+1. **Put where the kid is somewhere Sprout can read.** Use one of these, and
+   keep it accurate:
+   - screens as `<section class="screen" id="screen-…">`, with only the
+     current one visible
+   - a `step` / `screen` / `mode` key in `sprout.state`
+   - `sprout.progress.setup({ total })` first, and again whenever a phase
+     changes the total, timer, milestones or emoji; use
+     `sprout.progress.set({ current, total })` only to move the position —
+     the bar renders only after `setup()`; `set()` alone shows nothing. See
+     Progress, above.
+
+   ```js
+   function showScreen(id) {
+     document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('hidden', s.id !== id));
+     sprout.state.screen = id; // mutate the field — never replace the whole object
+   }
+   ```
+
+2. **Say what's on screen in text.** If the question is a drawing (SVG,
+   `<canvas>`) or a sound, add an `aria-label` or a visually hidden live
+   region describing it — for example, "Which is the biggest elephant?", with
+   each tile labelled "elephant, size 3 of 4". Sprout reads text, not pixels.
+
+3. **Emit both halves of the signal pair, with detail — but only the one
+   that happened.** Every `attempt-successful` needs a matching
+   `attempt-failed` code path (a correct-answer branch AND a wrong-answer
+   branch), but emit only the signal for the actual outcome — never both
+   for one attempt. Put the question id, what the kid picked, and — if you
+   know it — the kind of mistake in `props`:
+
+   ```js
+   if (picked === q.correct) {
+     sprout.signal('attempt-successful', { item: q.id, picked });
+   } else {
+     sprout.signal('attempt-failed', { item: q.id, picked, mistake: 'counted-shaded-as-half' });
+   }
+   ```
+
+   Don't emit `attempt-successful` on every tap regardless of outcome. It
+   tells Sprout the kid is succeeding when they aren't — and don't emit
+   both halves for one attempt either, or a correct answer reads to Sprout
+   as a failure alongside the success.
+
+4. **Use real buttons with real labels.** `<button>` over a clickable `<div>`,
+   with visible text or an `aria-label`.
+
+5. **Keep progress across runs in `sprout.journey`.** Mastery, unlocked
+   levels and maps belong in `journey` — not in `sprout.state`, which is per
+   run. `save()` always resolves, never rejects — but awaiting it alone
+   doesn't mean the checkpoint landed. Capture the result and check
+   `res.ok` before you complete:
+
+   ```js
+   const res = await sprout.journey.save(next);
+   if (!res.ok) {
+     // res.error is 'too-large' | 'disabled' | 'not-task-linked' | 'unsafe-value',
+     // but only on a typed refusal. A timeout, a rejected request or a
+     // malformed response resolves { ok: false } with NO error at all, so
+     // don't branch on res.error itself — handle any !res.ok the same way:
+     // degrade gracefully and finish the run anyway, just without this
+     // checkpoint (or retry the save first, if the checkpoint matters more).
+   }
+   sprout.complete();
+   ```
+
+   See Durable journey, above.
+
+6. **Speak through `sprout.tts` in the canvas code you write.** The kid hears
+   one voice channel. If your canvas talks over Sprout, or Sprout over your
+   canvas, the kid hears neither. (The kit's `SproutAudio.speak()` routes
+   through `sprout.tts` (as the canvas) inside a host; it falls back to the
+   browser's own `speechSynthesis` only with no host. Don't add a new
+   `speechSynthesis` call of your own.) See Buddy voice, above.
+
+7. **Complete exactly once — guard every call site.** The first
+   `sprout.complete(...)` call latches the moment it's posted — before the
+   host has accepted the run, not after. Acceptance is a separate, later
+   signal (see Completion, above); it doesn't gate the latch, so there's
+   nothing to wait for and nothing to gain by retrying after posting — a
+   retry is a silent no-op even before acceptance arrives. Every call after
+   the first is a silent no-op, so a timer AND a submit button may both
+   safely call it without a race. But when the timer fires first, hide or disable
+   the submit control yourself before calling `complete()` — with no click in
+   flight the runtime's own retirement falls back to whatever
+   control the kid last activated, which may not be that button at all, so
+   don't rely on it to hide the button for you. A back handler or an "enough
+   for today" button must not call `complete()` opportunistically — that
+   latches a run the kid didn't actually finish. (A call refused for bad
+   proof — malformed, duplicate, or over the host's told limit — throws
+   before anything is sent, so it never latches: correct the list and call
+   `complete()` again. See Completion, above, for the exact behavior.)
+
+8. **Mark a quiz screen with `data-sprout-rule`.** Put it on the same
+   element that names the screen (`class="screen"`, `id="screen-…"`,
+   `data-screen` or `data-phase`). It sets how much Sprout may do while that
+   screen is showing:
+
+   | Value       | Sprout on this screen                                                                                                             |
+   | ----------- | --------------------------------------------------------------------------------------------------------------------------------- |
+   | `tutor`     | Follows along and hints. The default for a screen with no rule.                                                                   |
+   | `encourage` | Cheers the kid on, never hints. Use it for a check the kid should do alone.                                                       |
+   | `off`       | Sees nothing but the screen's id, and says nothing unless the kid asks for help: then one cheer, never a hint. Use it for a quiz. |
+
+   ```html
+   <section class="screen" id="screen-practice">…</section>
+   <section class="screen hidden" id="screen-quiz" data-sprout-rule="off">…</section>
+   ```
+
+   - Leaving the attribute off keeps the screen `tutor`, so an existing
+     canvas behaves as it always has.
+   - A value that isn't exactly one of the three (`"Off"`, `"quiet"`, an
+     empty string) is read as `off`. A typo errs toward Sprout saying
+     nothing, never toward hinting on a quiz.
+   - Once your canvas has declared a rule on any screen, a screen Sprout
+     can't name (no screen element, or an id outside letters, digits, `-`
+     and `_`, up to 40 characters) is also read as `off`.
+   - A rule is read when the kid enters the screen. Changing the attribute
+     on the screen that's already showing takes effect the next time the
+     kid enters it.
+
+## Buddy clearance — `--sprout-buddy-clearance` (Released, iOS child host)
+
+Sprout's buddy is docked over the bottom of the canvas, in a native window the
+document cannot see. The host tells the document how tall that band is through
+one CSS custom property on `<html>`:
+
+```css
+--sprout-buddy-clearance: <px>; /* bottom band the docked buddy covers */
+```
+
+Pad the bottom of anything that must stay visible and tappable — letters a kid
+traces, answer buttons, a guide's end dot — by that much, **always with the
+`150px` fallback**:
+
+```css
+.practice-area {
+  padding-bottom: var(--sprout-buddy-clearance, 150px);
+}
+```
+
+- **The value is live.** The host sets it before your code runs and updates it
+  whenever the buddy's placement changes (he is pinned beside a proof canvas's
+  action bar, moves, or the device is a tablet). Never read it once and cache
+  the number; let CSS resolve it.
+- **It is the band the buddy's placement owns, not whether he is painted this
+  instant.** He pops in to speak and hides between lines, and hides during
+  full-screen camera; the value does not flicker with that, so your layout
+  does not reflow every time he talks.
+- **`0` is a real answer.** It means the host measured and the buddy covers
+  nothing at the bottom (for example, he is docked at the top).
+- **Always write the fallback.** An older app, and the web preview (which has
+  no docked buddy), never set the property. The injected base stylesheet
+  declares `150px` as its default and the fallback keeps a canvas without that
+  stylesheet on the same number — `150px` is the band canvases reserved by hand
+  before this property existed.
+- **The base stylesheet does not apply it for you.** `body` padding is
+  unchanged, so no canvas that already reserves its own bottom band moves. A
+  canvas opts in by using the property. If you hand-reserved a fixed bottom
+  padding for the buddy, replace it with the `var(...)` above.
+- A kit bottom action bar sits under the buddy by design (the host places him
+  above it), so the bar itself needs no extra padding; pad the content above
+  it.
+- That bar is only for canvas-level controls and navigation (Camera, a Done on
+  a finished canvas, Skip, Back/Next). When a step's own controls are the activity (Continue after
+  the squeeze, Check the pick, a Reset beside it), put them with the activity
+  in the content area as the kit's `.activity-action`, not in the bar under
+  the buddy, and omit the bottom bar. Pad the column that holds them with
+  `--sprout-buddy-clearance`, since the bar no longer lifts the buddy for you.
+  A step control still calls `sprout.complete()` when its step is the last.

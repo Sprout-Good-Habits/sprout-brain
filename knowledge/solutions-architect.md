@@ -76,10 +76,9 @@ RETIRED. Plans MAY assume progression:
 - **freePlay fit:** ON for practice/creative repetition; OFF for
   progression/metered pacing and for conversation tasks unless open-ended
   repeats are wanted. Cross-day progress does NOT depend on the switch.
-- **Rollout caveat:** the per-child `state` / `lastRun` blocks and quest
-  minting sit behind the `task_quests` family feature (rollout in progress).
-  Design for the model now; check the family's surface before promising it
-  live today.
+- **No rollout gate:** the per-child `state` / `lastRun` blocks and quest
+  minting are on for every family; the `task_quests` family gate was removed
+  (SPR-3093).
 - **Discovery caveat:** the MCP server `initialize` instructions do NOT yet
   carry this model (size-budget-blocked; rewrite pending). Never assume
   instructions-level awareness — pull `sprout://task/authoring-guide` (earning
@@ -95,7 +94,7 @@ When a user asks for help, classify the request before planning:
 | Adopt or remix | Parent saw an existing skill | Search marketplace, adopt private copy, personalize |
 | External evidence program | Goal depends on a third-party system | Suggested evidence shape, home-agent delegation, Sprout review/reward flow |
 | Publisher or partner | User wants to share with other families | Check Sprout primitives, public/private boundary, lineage, safety |
-| Program planner | Parent wants a day/week/summer routine | Assemble multiple small Sprout-supported patterns |
+| Routine planner | Parent wants a day/week/summer routine | Assemble multiple small Sprout-supported patterns (recurring tasks; programs and heartbeats are removed) |
 
 If the user wants to build from scratch, still gently suggest a marketplace
 search before custom work. If they say "just create," proceed with the current

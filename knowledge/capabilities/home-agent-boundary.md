@@ -36,9 +36,8 @@ The suggested evidence shape should help answer:
 ## Loop ownership: content updates stay on the home-agent side of the boundary
 
 Recurring **delivery** (kid sees an activity on a schedule) → Sprout-side
-(`heartbeat.create` / recurring task `scheduleSpec`). Recurring
-**maintenance** (review progress, regenerate lesson data, `canvas.update`)
-→ home-agent-side: a `category: "home_agent"` skill invoked on the agent's
-own cron. The Sprout scheduled executor has no canvas tools, so a
-maintenance loop scheduled as a heartbeat is both rejected at
-`heartbeat.create` (`AUTHORING_AS_RUN_SKILL`) and impossible at fire time.
+(recurring task `scheduleSpec`; heartbeats were removed in contract
+`2026.10.12-4`). Recurring **maintenance** (review progress, regenerate lesson
+data, `canvas_update`) → home-agent-side: a `category: "home_agent"` skill
+invoked on the agent's own cron. Sprout has no scheduled executor that can
+update a canvas.

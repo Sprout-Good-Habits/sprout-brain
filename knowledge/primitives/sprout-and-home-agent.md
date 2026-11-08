@@ -15,7 +15,7 @@ Last verified: 2026-07-12
 - `submission-review.md` - Parent approval and reviewed gem award path.
 - `reward.md` - Catalog item a child can spend gems on.
 - `gems.md` - Incentive currency and award boundaries.
-- `heartbeat.md` - Scheduled skill run.
+- `heartbeat.md` - Removed; recurring delivery is a recurring task.
 - `home-agent-evidence.md` - Suggested evidence shapes for external progress.
 
 ## Sequence docs

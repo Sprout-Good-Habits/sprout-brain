@@ -2,17 +2,18 @@
 
 Rewards are spending goals. Tasks and reviews are how kids earn gems.
 
-Last verified: 2026-07-01
+Last verified: 2026-11-07, against sprout-app contract `2026.11.07-1`.
 
-## Reward categories
+## A reward never grants screen time
 
-- **`general`** (default) — a catalog goal the child claims (e.g. "Switch game").
-  Must not carry a `minutes` grant.
-- **`screen_time`** — a reward whose payout is device screen time. Pass
-  `category: 'screen_time'` with `screenTimeSpec: { minutes }` (a positive grant
-  is required) to `reward_create`, priced in `gemsRequired`. On claim approval
-  the child is granted those minutes. See `screentime.md` for how this sits
-  alongside metered (gem-per-minute) unlocks.
+Rewards have no category and no minutes. `reward_create` and `reward_update`
+refuse `category` and `screenTimeSpec` as unknown fields (SPR-6976, contract
+`2026.10.15-3`). Screen time is bought with gems in the kid app at the price set
+by `screentime_update_settings`, or earned through a tasks-first schedule. To
+reward a child with screen time, give them gems. See `screentime.md`.
+
+A claim made earlier for a retired screen-time reward closes declined with the
+gems back, even on approve: after `reward_review_claim`, read `status`.
 
 ## Reward tools
 
